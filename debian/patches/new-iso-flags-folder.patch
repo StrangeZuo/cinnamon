@@ -1,0 +1,28 @@
+From: Debian Cinnamon Team <debian-cinnamon@lists.debian.org>
+Date: Mon, 26 Mar 2018 18:38:57 +0200
+Subject: new-iso-flags-folder
+
+---
+ files/usr/share/cinnamon/applets/keyboard@cinnamon.org/applet.js |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/files/usr/share/cinnamon/applets/keyboard@cinnamon.org/applet.js
++++ b/files/usr/share/cinnamon/applets/keyboard@cinnamon.org/applet.js
+@@ -237,7 +237,7 @@ class CinnamonKeyboardApplet extends App
+             if (this.show_flags) {
+                 let name = this._config.get_icon_name_for_group(i);
+ 
+-                let file = Gio.file_new_for_path("/usr/share/iso-flag-png/" + name + ".png");
++                let file = Gio.file_new_for_path("/usr/share/iso-flags-png-320x240/" + name + ".png");
+ 
+                 if (file.query_exists(null)) {
+                     actor = new EmblemedIcon(file.get_path(), this._config.get_flag_id_for_group(i), "popup-menu-icon").actor;
+@@ -287,7 +287,7 @@ class CinnamonKeyboardApplet extends App
+         if (this.show_flags) {
+             let name = this._config.get_current_icon_name();
+ 
+-            let file = Gio.file_new_for_path("/usr/share/iso-flag-png/" + name + ".png");
++            let file = Gio.file_new_for_path("/usr/share/iso-flags-png-320x240/" + name + ".png");
+ 
+             if (file.query_exists(null)) {
+                 this._applet_icon = new EmblemedIcon(file.get_path(), this._config.get_current_flag_id(), "applet-icon");

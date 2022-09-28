@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# error out in case of failed sub-command
+set -e
+
+case "$1" in
+    configure)
+        update-alternatives --remove x-window-manager /usr/bin/cinnamon-session-cinnamon
+        update-alternatives --remove x-window-manager /usr/bin/cinnamon-session-cinnamon2d
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0
+

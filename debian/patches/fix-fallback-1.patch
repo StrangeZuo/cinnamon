@@ -1,0 +1,39 @@
+Author: Michael Webster <miketwebster@gmail.com>
+Description: [PATCH] cinnamon-launcher: Don't call Gtk.main_quit() when showing
+ the restart dialog.
+
+The dialog starts its own event loop when you .run() it, but
+sometimes Gtk.main_quit() was being run before this could happen,
+causing the launcher process to simply exit.
+
+We also don't need to use Gtk.main_quit() when calling os.execvp
+as the current process resources will be automatically cleaned up.
+
+Origin: https://github.com/linuxmint/cinnamon/commit/1154c74fa593b0f2fe554a671cee365dd9ac29b8
+---
+ files/usr/bin/cinnamon-launcher | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/files/usr/bin/cinnamon-launcher b/files/usr/bin/cinnamon-launcher
+index f7881f4536..5fb4a56f4d 100755
+--- a/files/usr/bin/cinnamon-launcher
++++ b/files/usr/bin/cinnamon-launcher
+@@ -82,8 +82,8 @@ class Launcher():
+                     os.execvp(FALLBACK_COMMAND, (FALLBACK_COMMAND,) + FALLBACK_ARGS)
+                 else:
+                     self.confirm_restart()
+- 
+-        Gtk.main_quit()
++        else:
++            Gtk.main_quit()
+ 
+     @async_function
+     def monitor_memory(self):
+@@ -104,7 +104,6 @@ class Launcher():
+                     break
+ 
+     def restart_cinnamon(self):
+-        Gtk.main_quit()
+         os.execvp(sys.argv[0], (sys.argv[0], "--replace"))
+ 
+     def log_kill(self, memory, limit, delay):

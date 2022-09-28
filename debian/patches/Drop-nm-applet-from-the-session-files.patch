@@ -1,0 +1,33 @@
+From: Maximiliano Curia <maxy@gnuservers.com.ar>
+Date: Sun, 13 Mar 2016 19:10:11 +0100
+Subject: Drop nm-applet from the session files.
+
+nm-applet is started by the autostart script anyway, and if it's in the
+session file and network-manager-gnome is not installed then the session
+fails to start.
+
+Adjusted to meson build system 2020-11-27 NP
+
+Debian-Bug: https://bugs.debian.org/818084
+---
+ meson.build |    8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+--- a/meson.build
++++ b/meson.build
+@@ -157,11 +157,11 @@
+ )
+ 
+ session_conf = configuration_data()
+-if has_nm
+-    session_conf.set('REQUIRED', 'nm-applet;')
+-else
++#if has_nm
++#    session_conf.set('REQUIRED', 'nm-applet;')
++#else
+     session_conf.set('REQUIRED', '')
+-endif
++#endif
+ 
+ foreach file : ['cinnamon.session', 'cinnamon2d.session']
+     configure_file(

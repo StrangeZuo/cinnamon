@@ -1,0 +1,5 @@
+# muffin plugins dir
+cinnamon: custom-library-search-path usr/lib/x86_64-linux-gnu/cinnamon/libst.so RUNPATH usr/lib/x86_64-linux-gnu/muffin/
+cinnamon: custom-library-search-path usr/bin/cinnamon RUNPATH usr/lib/x86_64-linux-gnu/muffin/
+# dbus-send is used and cinnamon depends on it
+cinnamon: desktop-command-not-in-package usr/share/applications/cinnamon-onscreen-keyboard.desktop dbus-send
