@@ -10,12 +10,14 @@ Adjusted to meson build system 2020-11-27 NP
 
 Debian-Bug: https://bugs.debian.org/818084
 ---
- meson.build |    8 ++++----
+ meson.build | 8 ++++----
  1 file changed, 4 insertions(+), 4 deletions(-)
 
+diff --git a/meson.build b/meson.build
+index bbcce8d..7a39bdd 100644
 --- a/meson.build
 +++ b/meson.build
-@@ -157,11 +157,11 @@
+@@ -159,11 +159,11 @@ install_subdir(
  )
  
  session_conf = configuration_data()
@@ -29,5 +31,5 @@ Debian-Bug: https://bugs.debian.org/818084
 -endif
 +#endif
  
- foreach file : ['cinnamon.session', 'cinnamon2d.session']
+ foreach file : ['cinnamon.session', 'cinnamon2d.session', 'cinnamon-wayland.session']
      configure_file(

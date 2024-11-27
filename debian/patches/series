@@ -1,8 +1,5 @@
 background.patch
 Drop-nm-applet-from-the-session-files.patch
 new-iso-flags-folder.patch
-always-add-default-theme.patch
-fix-fallback-1.patch
-fix-fallback-2.patch
-fix-menu-editor-python3.10.patch
-capy-better-multiarch-support.patch
+change-upload-system-info-path.patch
+upstream/docs-Remove-recorder.xml.in.patch

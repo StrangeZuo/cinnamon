@@ -3,24 +3,33 @@ subdir('hotplug-sniffer')
 
 include_src = include_directories('.')
 
+calendar_generated = gnome.gdbus_codegen('cinnamon-calendar',
+  sources: 'org.cinnamon.CalendarServer.xml',
+  interface_prefix: 'org.cinnamon.',
+  namespace: 'Cinnamon'
+)
+
 cinnamon_headers = [
+    'cinnamon-action-mode.h',
     'cinnamon-app.h',
     'cinnamon-app-system.h',
     'cinnamon-doc-system.h',
     'cinnamon-embedded-window.h',
     'cinnamon-generic-container.h',
+    'cinnamon-glsl-effect.h',
     'cinnamon-gtk-embed.h',
     'cinnamon-global.h',
     'cinnamon-perf-log.h',
+    'cinnamon-screen.h',
     'cinnamon-screenshot.h',
     'cinnamon-slicer.h',
     'cinnamon-stack.h',
+    'cinnamon-touchegg-client.h',
     'cinnamon-tray-icon.h',
     'cinnamon-tray-manager.h',
     'cinnamon-util.h',
     'cinnamon-window-tracker.h',
     'cinnamon-wm.h',
-    'cinnamon-xfixes-cursor.h',
 ]
 
 cinnamon_private_headers = [
@@ -39,19 +48,24 @@ cinnamon_sources = [
     'cinnamon-doc-system.c',
     'cinnamon-embedded-window.c',
     'cinnamon-generic-container.c',
+    'cinnamon-glsl-effect.c',
     'cinnamon-gtk-embed.c',
     'cinnamon-global.c',
     'cinnamon-perf-log.c',
+    'cinnamon-polkit-authentication-agent.c',
+    'cinnamon-polkit-authentication-agent.h',
+    'cinnamon-screen.c',
     'cinnamon-screenshot.c',
     'cinnamon-slicer.c',
     'cinnamon-stack.c',
+    'cinnamon-touchegg-client.c',
     'cinnamon-tray-icon.c',
     'cinnamon-tray-manager.c',
     'cinnamon-util.c',
     'cinnamon-window-tracker.c',
     'cinnamon-wm.c',
-    'cinnamon-xfixes-cursor.c',
     cinnamon_headers,
+    calendar_generated
 ]
 
 cinnamon_enum_types = gnome.mkenums_simple(
@@ -89,10 +103,8 @@ libcinnamon_deps = [
     muffin,
     pango,
     polkit,
-    sn,
-    soup,
     st_dep,
-    xfixes,
+    xapp,
     xml,
 ]
 
@@ -114,11 +126,15 @@ if get_option('build_recorder')
     ]
 endif
 
+install_rpath = ':'.join([muffin_typelibdir, pkglibdir])
+
+
 libcinnamon = library(
     'cinnamon',
     [cinnamon_sources, non_gir, tray_sources, st_enum_types[1]],
     include_directories: [include_root, include_directories('st', 'tray')],
-    install_rpath: join_paths(prefix, pkglibdir),
+    install_rpath: install_rpath,
+    build_rpath: muffin_typelibdir,
     dependencies: libcinnamon_deps,
     install: true,
     install_dir: pkglibdir,
@@ -138,18 +154,21 @@ executable(
     dependencies: [config_h, gtk],
     install: true,
     install_dir: libexecdir,
+    install_rpath: install_rpath,
+    build_rpath: muffin_typelibdir
 )
 
-js_tester = executable(
-    'run-js-test',
-    ['run-js-test.c', cinnamon_enum_types[1], st_enum_types[1]],
-    c_args: [
-        '-DCINNAMON_PKGLIBDIR="@0@"'.format(join_paths(prefix, pkglibdir)),
-    ],
-    include_directories: include_root,
-    dependencies: cinnamon_dep,
-    install: false,
-)
+# FIXME
+# js_tester = executable(
+#     'run-js-test',
+#     ['run-js-test.c', cinnamon_enum_types[1], st_enum_types[1]],
+#     c_args: [
+#         '-DCINNAMON_PKGLIBDIR="@0@"'.format(join_paths(prefix, pkglibdir)),
+#     ],
+#     include_directories: include_root,
+#     dependencies: cinnamon_dep,
+#     install: false,
+# )
 
 executable(
     'cinnamon',
@@ -158,8 +177,9 @@ executable(
         '-DLOCALEDIR="@0@"'.format(join_paths(prefix, datadir, 'locale')),
         '-DCINNAMON_PKGLIBDIR="@0@"'.format(join_paths(prefix, pkglibdir)),
     ],
-    install_rpath: ':'.join([join_paths(prefix, pkglibdir), muffinlibdir]),
-    include_directories: include_root,
+    install_rpath: install_rpath,
+    build_rpath: muffin_typelibdir,
+    include_directories: [include_root, st_inc],
     dependencies: cinnamon_dep,
     install: true,
 )
@@ -169,9 +189,9 @@ cinnamon_gir_includes = [
     'ClutterX11-0',
     'CoglPango-0',
     'Cogl-0',
-    'Meta-Muffin.0',
-    'Soup-2.4',
+    'Meta-0',
     'CMenu-3.0',
+    'PolkitAgent-1.0',
     st_gir[0],
 ]
 
@@ -183,10 +203,11 @@ cinnamon_gir = gnome.generate_gir(
     dependencies: libcinnamon_deps,
     identifier_prefix: 'Cinnamon',
     symbol_prefix: 'cinnamon',
+    export_packages: 'cinnamon',
     includes: cinnamon_gir_includes,
     install: true,
     install_dir_typelib: pkglibdir,
-    install_dir_gir: false,
+    install_dir_gir: pkgdatadir,
     extra_args: [
         '-DST_COMPILATION',
         '--quiet',

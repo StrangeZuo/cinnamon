@@ -1,0 +1,32 @@
+From: Fabio Fantoni <fantonifabio@tiscali.it>
+Date: Mon, 1 Apr 2024 12:39:30 +0200
+Subject: Change the upload-system-info path
+
+Forwarded: not-needed
+Last-Update: 2022-12-02
+---
+ files/usr/share/cinnamon/cinnamon-settings/modules/cs_info.py | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/files/usr/share/cinnamon/cinnamon-settings/modules/cs_info.py b/files/usr/share/cinnamon/cinnamon-settings/modules/cs_info.py
+index 5b7625c..ceeee98 100755
+--- a/files/usr/share/cinnamon/cinnamon-settings/modules/cs_info.py
++++ b/files/usr/share/cinnamon/cinnamon-settings/modules/cs_info.py
+@@ -195,7 +195,7 @@ class Module:
+                 widget.pack_end(labelValue, False, False, 0)
+                 settings.add_row(widget)
+ 
+-            if shutil.which("upload-system-info"):
++            if os.path.exists("/usr/share/xapps-common/bin/upload-system-info"):
+                 widget = SettingsWidget()
+ 
+                 spinner = Gtk.Spinner(visible=True)
+@@ -246,7 +246,7 @@ class Module:
+ 
+     def on_upload_button_clicked(self, button, spinner):
+         try:
+-            subproc = Gio.Subprocess.new(["upload-system-info"], Gio.SubprocessFlags.NONE)
++            subproc = Gio.Subprocess.new(["/usr/share/xapps-common/bin/upload-system-info"], Gio.SubprocessFlags.NONE)
+             subproc.wait_check_async(None, self.on_subprocess_complete, spinner)
+             spinner.start()
+         except GLib.Error as e:

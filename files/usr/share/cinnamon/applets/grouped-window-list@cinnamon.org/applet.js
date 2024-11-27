@@ -1,7 +1,7 @@
+const Clutter = imports.gi.Clutter;
 const Gio = imports.gi.Gio;
 const Gtk = imports.gi.Gtk;
 const GLib = imports.gi.GLib;
-const Gdk = imports.gi.Gdk;
 const Meta = imports.gi.Meta;
 const St = imports.gi.St;
 const Gettext = imports.gettext;
@@ -11,7 +11,7 @@ const Main = imports.ui.main;
 const DND = imports.ui.dnd;
 const {AppletSettings} = imports.ui.settings;
 const {SignalManager} = imports.misc.signalManager;
-const {each, find, findIndex, filter, throttle, unref, trySpawnCommandLine} = imports.misc.util;
+const {throttle, unref, trySpawnCommandLine} = imports.misc.util;
 const {createStore} = imports.misc.state;
 
 const AppGroup = require('./appGroup');
@@ -31,31 +31,25 @@ class PinnedFavs {
     reload() {
         const {state, signals, settings} = this.params;
         const appSystem = state.trigger('getAppSystem');
-        if (signals.isConnected('changed::pinned-apps', settings)) {
-            signals.disconnect('changed::pinned-apps', settings);
-        }
-        let cb = () => this.onFavoritesChange();
-        signals.connect(settings, 'changed::pinned-apps', cb);
         this._favorites = [];
-        let ids = [];
-        ids = settings.getValue('pinned-apps');
-        for (let i = 0, len = ids.length; i < len; i++) {
-            let refFav = findIndex(this._favorites, (item) => item.id === ids[i]);
+
+        settings.getValue('pinned-apps').forEach( id => {
+            const refFav = this._favorites.findIndex( item => item.id === id);
             if (refFav === -1) {
-                let app = appSystem.lookup_app(ids[i]);
+                const app = appSystem.lookup_app(id);
                 this._favorites.push({
-                    id: ids[i],
+                    id: id,
                     app: app
                 });
             }
-        }
+        });
     }
 
     triggerUpdate(appId, isFavoriteApp) {
-        let currentAppList = this.params.state.trigger('getCurrentAppList');
+        const currentAppList = this.params.state.trigger('getCurrentAppList');
         if (!currentAppList) return;
 
-        let refApp = findIndex(currentAppList.appList, (appGroup) => appGroup.groupState.appId === appId);
+        const refApp = currentAppList.appList.findIndex( appGroup => appGroup.groupState.appId === appId);
         if (refApp === -1) return;
 
         // A pinned app with no windows open was unpinned - remove it
@@ -72,8 +66,8 @@ class PinnedFavs {
     }
 
     saveFavorites() {
-        let uniqueSet = new Set();
-        let ids = [];
+        const uniqueSet = new Set();
+        const ids = [];
         for (let i = 0; i < this._favorites.length; i++) {
             if (uniqueSet.has(this._favorites[i].id) === false) {
                 ids.push(this._favorites[i].id);
@@ -101,28 +95,23 @@ class PinnedFavs {
             return false;
         }
 
-        let newFavorite = {
+        const newFavorite = {
             id: opts.appId,
             app: opts.app
         };
-        let refFavorite = findIndex(this._favorites, function(favorite) {
-            return favorite.id === opts.appId;
-        });
+        const refFavorite = this._favorites.findIndex( favorite => favorite.id === opts.appId);
 
         if (refFavorite === -1) {
             // Iterates the app groups in the order they are added as children, this
             // ensures we always get the correct favorites order regardless of whether
             // or not pin on drag is enabled.
-            let currentAppList = this.params.state.trigger('getCurrentAppList');
-            let children = currentAppList.actor.get_children();
-            let newFavorites = [];
+            const currentAppList = this.params.state.trigger('getCurrentAppList');
+            const newFavorites = [];
             let refActorFound = false;
-            each(children, (actor, i) => {
-                let appGroup = find(currentAppList.appList, function(appGroup) {
-                    return appGroup.actor === actor;
-                });
+            currentAppList.actor.get_children().forEach( (actor, i) => {
+                const appGroup = currentAppList.appList.find( appGroup => appGroup.actor === actor );
                 if (!appGroup) return;
-                let {app, appId, isFavoriteApp} = appGroup.groupState;
+                const {app, appId, isFavoriteApp} = appGroup.groupState;
                 let isFavorite = isFavoriteApp;
 
                 if (appId === opts.appId) {
@@ -149,27 +138,25 @@ class PinnedFavs {
         }
 
         this.saveFavorites();
+        this.onFavoritesChange();
         return true;
     }
 
     moveFavoriteToPos(opts, oldIndex) {
         if (!oldIndex || !this.params.state.settings.groupApps) {
-            oldIndex = findIndex(this._favorites, function(favorite) {
-                return favorite.id === opts.appId;
-            });
+            oldIndex = this._favorites.findIndex( favorite => favorite.id === opts.appId);
         }
         this._favorites.splice(opts.pos, 0, this._favorites.splice(oldIndex, 1)[0]);
-        this._favorites = filter(this._favorites, function(favorite) {
-            return favorite && favorite.app != null;
-        });
+        this._favorites = this._favorites.filter( favorite => favorite && favorite.app != null );
         this.saveFavorites();
     }
 
     removeFavorite(appId) {
-        let refFav = findIndex(this._favorites, (favorite) => favorite.id === appId);
+        const refFav = this._favorites.findIndex( favorite => favorite.id === appId);
         this.triggerUpdate(appId, false);
         this._favorites.splice(refFav, 1);
         this.saveFavorites();
+        this.onFavoritesChange();
         return true;
     }
 }
@@ -191,7 +178,7 @@ class GroupedWindowListApplet extends Applet.Applet {
             instance_id,
             monitorWatchList: [],
             autoStartApps: [],
-            currentWs: global.screen.get_active_workspace_index(),
+            currentWs: global.workspace_manager.get_active_workspace_index(),
             panelEditMode: global.settings.get_boolean('panel-edit-mode'),
             menuOpen: false,
             dragging: {
@@ -200,11 +187,12 @@ class GroupedWindowListApplet extends Applet.Applet {
                 pos: -1,
                 isForeign: null,
             },
+            appletActor: null,
             appletReady: false,
             willUnmount: false,
             settings: {},
             homeDir: GLib.get_home_dir(),
-            overlayPreview: null,
+            lastOverlayPreview: null,
             lastCycled: -1,
             lastTitleDisplay: null,
             scrollActive: false,
@@ -228,19 +216,19 @@ class GroupedWindowListApplet extends Applet.Applet {
             getAppFromWindow: (metaWindow) => this.getAppFromWindow(metaWindow),
             getTracker: () => this.tracker,
             addWindowToAllWorkspaces: (win, app, isFavoriteApp) => {
-                each(this.appLists, function(appList) {
+                this.appLists.forEach( appList => {
                     appList.windowAdded(appList.metaWorkspace, win, app, isFavoriteApp);
                 });
                 this.state.addingWindowToWorkspaces = false;
             },
             removeWindowFromAllWorkspaces: (win) => {
-                each(this.appLists, function(appList) {
+                this.appLists.forEach( appList => {
                     appList.windowRemoved(appList.metaWorkspace, win);
                 });
                 this.state.removingWindowFromWorkspaces = false;
             },
             removeWindowFromOtherWorkspaces: (win) => {
-                each(this.appLists, (appList) => {
+                this.appLists.forEach( appList => {
                     if (appList.listState.workspaceIndex === this.state.currentWs) {
                         return;
                     }
@@ -285,28 +273,28 @@ class GroupedWindowListApplet extends Applet.Applet {
         this.setAllowedLayout(Applet.AllowedLayout.BOTH);
         Gettext.bindtextdomain(metadata.uuid, GLib.get_home_dir() + '/.local/share/locale');
 
+        this.actor.set_style_class_name('grouped-window-list-box');
+        this.state.set({appletActor: this.actor});
+        this.on_orientation_changed(orientation);
+
         this.getAutoStartApps();
         this.onSwitchWorkspace = throttle(this.onSwitchWorkspace, 35, false); //Note: causes a 35ms delay in execution
         this.signals.connect(this.actor, 'scroll-event', (c, e) => this.handleScroll(e));
         this.signals.connect(global, 'scale-changed', (...args) => this.onUIScaleChange(...args));
         this.signals.connect(global.window_manager, 'switch-workspace', (...args) => this.onSwitchWorkspace(...args));
-        this.signals.connect(global.screen, 'workspace-removed', (...args) => this.onWorkspaceRemoved(...args));
-        this.signals.connect(global.screen, 'window-monitor-changed', (...args) => this.onWindowMonitorChanged(...args));
-        this.signals.connect(global.screen, 'monitors-changed', (...args) => this.on_applet_instances_changed(...args));
-        this.signals.connect(global.screen, 'window-skip-taskbar-changed', (...args) => this.onWindowSkipTaskbarChanged(...args));
+        this.signals.connect(global.workspace_manager, 'workspace-removed', (...args) => this.onWorkspaceRemoved(...args));
+        this.signals.connect(global.display, 'window-monitor-changed', (...args) => this.onWindowMonitorChanged(...args));
+        this.signals.connect(Main.panelManager, 'monitors-changed', (...args) => this._onMonitorsChanged(...args));
+        this.signals.connect(global.display, 'window-skip-taskbar-changed', (...args) => this.onWindowSkipTaskbarChanged(...args));
         this.signals.connect(global.display, 'window-marked-urgent', (...args) => this.updateAttentionState(...args));
         this.signals.connect(global.display, 'window-demands-attention', (...args) => this.updateAttentionState(...args));
         this.signals.connect(global.display, 'window-created', (...args) => this.onWindowCreated(...args));
         this.signals.connect(global.settings, 'changed::panel-edit-mode', (...args) => this.on_panel_edit_mode_changed(...args));
-        this.signals.connect(Main.overview, 'showing', (...args) => this.onOverviewShow(...args));
-        this.signals.connect(Main.overview, 'hiding', (...args) => this.onOverviewHide(...args));
-        this.signals.connect(Main.expo, 'showing', (...args) => this.onOverviewShow(...args));
-        this.signals.connect(Main.expo, 'hiding', (...args) => this.onOverviewHide(...args));
         this.signals.connect(Main.themeManager, 'theme-set', (...args) => this.refreshCurrentAppList(...args));
     }
 
     bindSettings() {
-        let settingsProps = [
+        const settingsProps = [
             {key: 'group-apps', value: 'groupApps', cb: this.refreshCurrentAppList},
             {key: 'enable-app-button-dragging', value: 'enableDragging', cb: this.draggableSettingChanged},
             {key: 'launcher-animation-effect', value: 'launcherAnimationEffect', cb: null},
@@ -355,8 +343,8 @@ class GroupedWindowListApplet extends Applet.Applet {
     }
 
     draggableSettingChanged() {
-        each(this.appLists, (workspace) => {
-            each(workspace.appList, (appGroup) => {
+        this.appLists.forEach( workspace => {
+            workspace.appList.forEach( appGroup => {
                 appGroup._draggable.inhibit = !this.state.settings.enableDragging;
             });
         });
@@ -370,7 +358,7 @@ class GroupedWindowListApplet extends Applet.Applet {
         this.state.set({appletReady: true});
     }
 
-    on_applet_instances_changed(instance) {
+    _updateState(initialUpdate) {
         if (!this.state.appletReady) {
             return;
         }
@@ -378,19 +366,29 @@ class GroupedWindowListApplet extends Applet.Applet {
         this.numberOfMonitors = null;
         this.updateMonitorWatchlist();
 
-        if (instance && instance.instance_id === this.instance_id) {
+        if (initialUpdate) {
             this.onSwitchWorkspace();
         } else {
             this.refreshCurrentAppList();
         }
     }
 
+    on_applet_instances_changed(instance) {
+        this._updateState(instance?.instance_id === this.instance_id);
+    }
+
+    _onMonitorsChanged(panelManager) {
+        this._updateState(false);
+    }
+
     on_panel_edit_mode_changed() {
         this.state.set({panelEditMode: !this.state.panelEditMode});
-        each(this.appLists, (workspace) => {
-            each(workspace.appList, (appGroup) => {
+        this.appLists.forEach( workspace => {
+            workspace.appList.forEach( appGroup => {
                 if (appGroup.hoverMenu) appGroup.hoverMenu.actor.reactive = !this.state.panelEditMode;
-                if (appGroup.rightClickMenu) appGroup.rightClickMenu.actor.reactive = !this.state.panelEditMode;
+                if (appGroup.rightClickMenu) {
+                    appGroup.rightClickMenu.actor.reactive = !this.state.panelEditMode;
+                }
                 appGroup.actor.reactive = !this.state.panelEditMode;
             });
         });
@@ -405,6 +403,7 @@ class GroupedWindowListApplet extends Applet.Applet {
             orientation: orientation,
             isHorizontal: orientation === St.Side.TOP || orientation === St.Side.BOTTOM
         });
+
         if (this.state.isHorizontal) {
             this.actor.remove_style_class_name('vertical');
         } else {
@@ -438,22 +437,24 @@ class GroupedWindowListApplet extends Applet.Applet {
         return false;
     }
 
-    onWindowMonitorChanged(screen, metaWindow, metaWorkspace) {
+    onWindowMonitorChanged(display, metaWindow, metaWorkspace) {
         if (this.state.monitorWatchList.length !== this.numberOfMonitors) {
-            let appList = this.getCurrentAppList();
-            appList.windowRemoved(metaWorkspace, metaWindow);
-            appList.windowAdded(metaWorkspace, metaWindow);
+            const appList = this.getCurrentAppList();
+            if (appList !== null) {
+                appList.windowRemoved(metaWorkspace, metaWindow);
+                appList.windowAdded(metaWorkspace, metaWindow);
+            }
         }
     }
 
     bindAppKeys() {
         this.unbindAppKeys();
 
-        for (let i = 1; i < 10; i++) {
-            if (this.state.settings.SuperNumHotkeys) {
+        if (this.state.settings.SuperNumHotkeys) {
+            for (let i = 1; i < 10; i++) {
                 this.bindAppKey(i);
+                this.bindNewAppKey(i);
             }
-            this.bindNewAppKey(i);
         }
         Main.keybindingManager.addHotKey('launch-show-apps-order', this.state.settings.showAppsOrderHotkey, () =>
             this.showAppsOrder()
@@ -504,10 +505,10 @@ class GroupedWindowListApplet extends Applet.Applet {
 
     updateMonitorWatchlist() {
         if (!this.numberOfMonitors) {
-            this.numberOfMonitors = Gdk.Screen.get_default().get_n_monitors();
+            this.numberOfMonitors = global.display.get_n_monitors();
         }
-        let onPrimary = this.panel.monitorIndex === Main.layoutManager.primaryIndex;
-        let instances = Main.AppletManager.getRunningInstancesForUuid(this.state.uuid);
+        const onPrimary = this.panel.monitorIndex === Main.layoutManager.primaryIndex;
+        const instances = Main.AppletManager.getRunningInstancesForUuid(this.state.uuid);
         let {monitorWatchList} = this.state;
         /* Simple cases */
         if (this.numberOfMonitors === 1) {
@@ -538,60 +539,63 @@ class GroupedWindowListApplet extends Applet.Applet {
     }
 
     refreshCurrentAppList() {
-        let appList = this.appLists[this.state.currentWs];
-        if (appList) setTimeout(() => appList.refreshList(), 0);
+        const appList = this.getCurrentAppList();
+        if (appList) appList.refreshList();
     }
 
-    refreshAllAppLists() {
-        each(this.appLists, function(appList) {
+    refreshAllAppLists(options = {exceptCurrentOne: false}) {
+        const currentAppList = this.getCurrentAppList();
+        this.appLists.forEach( appList => {
+            if (options.exceptCurrentOne && currentAppList === appList)
+                return;
             setTimeout(() => appList.refreshList(), 0);
         });
     }
 
     updateFavorites() {
         this.pinnedFavorites.reload();
-        this.refreshCurrentAppList();
+        this.refreshAllAppLists();
     }
 
     updateThumbnailSize() {
-        each(this.appLists, (workspace) => {
-            each(workspace.appList, (appGroup) => {
+        this.appLists.forEach( workspace => {
+            workspace.appList.forEach( appGroup => {
                 if (appGroup.hoverMenu) appGroup.hoverMenu.updateThumbnailSize();
             });
         });
     }
 
     updateActorAttributes(iconSize) {
-        each(this.appLists, (workspace) => {
+        this.appLists.forEach( workspace => {
             if (!workspace) return;
 
-            each(workspace.appList, (appGroup) => {
-                appGroup.setActorAttributes(iconSize);
-            });
+            workspace.appList.forEach(
+                appGroup => appGroup.setActorAttributes(iconSize)
+            );
         });
     }
 
     updateWindowNumberState() {
-        each(this.appLists, (workspace) => {
-            workspace.calcAllWindowNumbers();
-        });
+        this.appLists.forEach(
+            workspace => workspace.calcAllWindowNumbers()
+        );
     }
 
     updateAttentionState(display, window) {
-        each(this.appLists, (workspace) => {
-            workspace.updateAttentionState(display, window);
-        });
+        this.appLists.forEach(
+            workspace => workspace.updateAttentionState(display, window)
+        );
     }
 
     onWindowCreated(display, window) {
-        each(this.appLists, (workspace) => {
-            workspace.windowAdded(window.get_workspace(), window);
-        });
+        this.appLists.forEach(
+            workspace => workspace.windowAdded(window.get_workspace(), window)
+        );
     }
 
     updateVerticalThumbnailState() {
-        each(this.appLists, (workspace) => {
-            each(workspace.appList, (appGroup) => {
+        this.appLists.forEach( workspace => {
+            workspace.appList.forEach( appGroup => {
                 if (appGroup && appGroup.hoverMenu) {
                     appGroup.hoverMenu.setVerticalSetting();
                 }
@@ -605,10 +609,10 @@ class GroupedWindowListApplet extends Applet.Applet {
             this.refreshCurrentAppList();
         }
 
-        each(this.appLists, (workspace) => {
-            each(workspace.appList, (appGroup) => {
+        this.appLists.forEach( workspace => {
+            workspace.appList.forEach( appGroup => {
                 if (titleDisplay === TitleDisplay.Focused) {
-                    appGroup.hideLabel(false);
+                    appGroup.hideLabel();
                 }
                 appGroup.handleTitleDisplayChange();
             });
@@ -618,7 +622,7 @@ class GroupedWindowListApplet extends Applet.Applet {
     }
 
     getAppFromWindow(metaWindow) {
-        let tracker = this.state.trigger('getTracker');
+        const tracker = this.state.trigger('getTracker');
         if (!tracker) {
           return null;
         }
@@ -633,7 +637,15 @@ class GroupedWindowListApplet extends Applet.Applet {
     }
 
     getCurrentAppList() {
-        if (typeof this.appLists[this.state.currentWs] !== 'undefined') {
+        const metaWorkspace = global.workspace_manager.get_workspace_by_index(this.state.currentWs);
+
+        const currentAppList = this.appLists.find(
+            item => item.metaWorkspace && item.metaWorkspace === metaWorkspace
+        );
+
+        if (currentAppList) {
+            return currentAppList;
+        } else if (typeof this.appLists[this.state.currentWs] !== 'undefined') {
             return this.appLists[this.state.currentWs];
         } else if (typeof this.appLists[0] !== 'undefined') {
             return this.appLists[0];
@@ -645,16 +657,16 @@ class GroupedWindowListApplet extends Applet.Applet {
     getAutoStartApps() {
         let info, autoStartDir;
 
-        let getChildren = () => {
-            let children = autoStartDir.enumerate_children(
+        const getChildren = () => {
+            const children = autoStartDir.enumerate_children(
                 'standard::name,standard::type,time::modified',
                 Gio.FileQueryInfoFlags.NONE,
                 null
             );
             while ((info = children.next_file(null)) !== null) {
                 if (info.get_file_type() === Gio.FileType.REGULAR) {
-                    let name = info.get_name();
-                    let file = Gio.file_new_for_path(autoStartStrDir + '/' + name);
+                    const name = info.get_name();
+                    const file = Gio.file_new_for_path(autoStartStrDir + '/' + name);
                     this.state.autoStartApps.push({id: name, file: file});
                 }
             }
@@ -672,6 +684,9 @@ class GroupedWindowListApplet extends Applet.Applet {
     }
 
     handleScroll(e, sourceFromAppGroup) {
+        if (e?.get_scroll_direction() == Clutter.ScrollDirection.SMOOTH)
+            return;
+
         if( (this.state.settings.thumbnailScrollBehavior) || (this.state.settings.scrollBehavior === 2) ||
             (this.state.settings.leftClickAction === 3 && this.state.settings.scrollBehavior !== 3
              && !e && sourceFromAppGroup)  ||
@@ -680,6 +695,8 @@ class GroupedWindowListApplet extends Applet.Applet {
             (this.state.settings.leftClickAction === 3 && this.state.settings.scrollBehavior === 3)) {
 
             this.state.set({scrollActive: true});
+
+            const appList = this.getCurrentAppList();
 
             let isAppScroll = this.state.settings.scrollBehavior === 2;
             let direction, source;
@@ -695,22 +712,23 @@ class GroupedWindowListApplet extends Applet.Applet {
             let lastFocusedApp, z, count
 
             if (isAppScroll) {
-                lastFocusedApp = this.appLists[this.state.currentWs].listState.lastFocusedApp;
+                lastFocusedApp = appList.listState.lastFocusedApp;
                 if (!lastFocusedApp) {
-                    lastFocusedApp = this.appLists[this.state.currentWs].appList[0].groupState.appId
+                    lastFocusedApp = appList.appList[0].groupState.appId
                 }
-                let focusedIndex = findIndex(this.appLists[this.state.currentWs].appList, function(appGroup) {
-                    return appGroup.groupState.metaWindows.length > 0 && appGroup.groupState.appId === lastFocusedApp;
-                });
+                const focusedIndex = appList.appList.findIndex(
+                    appGroup => appGroup.groupState.metaWindows.length > 0
+                        && appGroup.groupState.appId === lastFocusedApp
+                );
                 z = direction === 0 ? focusedIndex - 1 : focusedIndex + 1;
-                count = this.appLists[this.state.currentWs].appList.length - 1;
+                count = appList.appList.length - 1;
             } else {
                 if (!source.groupState || source.groupState.metaWindows.length < 1) {
                     return;
                 }
-                let focusedIndex = findIndex(source.groupState.metaWindows, function(metaWindow) {
-                    return metaWindow === source.groupState.lastFocused;
-                });
+                const focusedIndex = source.groupState.metaWindows.findIndex(
+                    metaWindow => metaWindow === source.groupState.lastFocused
+                );
                 z = direction === 0 ? focusedIndex - 1 : focusedIndex + 1;
                 count = source.groupState.metaWindows.length - 1;
             }
@@ -718,8 +736,8 @@ class GroupedWindowListApplet extends Applet.Applet {
             let limit = count * 2;
 
             while ((isAppScroll
-                && (!this.appLists[this.state.currentWs].appList[z]
-                    || !this.appLists[this.state.currentWs].appList[z].groupState.lastFocused))
+                && (!appList.appList[z]
+                    || !appList.appList[z].groupState.lastFocused))
                 || (!isAppScroll &&
                     (!source.groupState.metaWindows[z]
                         || source.groupState.metaWindows[z] === source.groupState.lastFocused))) {
@@ -741,8 +759,8 @@ class GroupedWindowListApplet extends Applet.Applet {
                 }
             }
 
-            let _window = isAppScroll ?
-                this.appLists[this.state.currentWs].appList[z].groupState.lastFocused
+            const _window = isAppScroll ?
+                appList.appList[z].groupState.lastFocused
                 : source.groupState.metaWindows[z];
             Main.activateWindow(_window, global.get_current_time());
             setTimeout(() => this.state.set({scrollActive: false}, 4000));
@@ -755,18 +773,18 @@ class GroupedWindowListApplet extends Applet.Applet {
         if(actor.name === 'xdnd-proxy-actor')
             return DND.DragMotionResult.CONTINUE;
 
-        let appList = this.appLists[this.state.currentWs];
-        let rtl_horizontal = this.state.isHorizontal
+        const appList = this.getCurrentAppList();
+        const rtl_horizontal = this.state.isHorizontal
             && St.Widget.get_default_direction () === St.TextDirection.RTL;
 
-        let axis = this.state.isHorizontal ? [x, 'x2'] : [y, 'y2'];
+        const axis = this.state.isHorizontal ? [x, 'x2'] : [y, 'y2'];
         if(rtl_horizontal)
             axis[0] = this.actor.width - axis[0];
 
         // save data on drag start
         if(this.state.dragging.posList === null){
             this.state.dragging.isForeign = !(source instanceof AppGroup);
-            let children = appList.actor.get_children();
+            const children = appList.actor.get_children();
             this.state.dragging.posList = [];
             for(let i = 0; i < children.length; i++){
                 let childPos;
@@ -782,11 +800,18 @@ class GroupedWindowListApplet extends Applet.Applet {
         let pos = 0;
         while(pos < this.state.dragging.posList.length && axis[0] > this.state.dragging.posList[pos])
             pos++;
+        
+        let favLength = 0;
+        for (const appGroup of appList.appList) {
+            if(appGroup.groupState.isFavoriteApp)
+                favLength++;
+            else break;
+        }
 
         // keep pinned and unpinned items separate
-        if((this.state.dragging.isForeign && pos > this.pinnedFavorites._favorites.length) ||
-            (!this.state.dragging.isForeign && source.groupState.isFavoriteApp && pos >= this.pinnedFavorites._favorites.length) ||
-            (!this.state.dragging.isForeign && !source.groupState.isFavoriteApp && pos < this.pinnedFavorites._favorites.length))
+        if((this.state.dragging.isForeign && pos > favLength) ||
+            (!this.state.dragging.isForeign && source.groupState.isFavoriteApp && pos >= favLength) ||
+            (!this.state.dragging.isForeign && !source.groupState.isFavoriteApp && pos < favLength))
             return DND.DragMotionResult.NO_DROP;
 
         // handle position change
@@ -797,7 +822,7 @@ class GroupedWindowListApplet extends Applet.Applet {
                 if (this.state.dragging.dragPlaceholder)
                     appList.actor.set_child_at_index(this.state.dragging.dragPlaceholder.actor, pos);
                 else {
-                    let iconSize = this.getPanelIconSize() * global.ui_scale;
+                    const iconSize = this.getPanelIconSize() * global.ui_scale;
                     this.state.dragging.dragPlaceholder = new DND.GenericDragPlaceholderItem();
                     this.state.dragging.dragPlaceholder.child.width = iconSize;
                     this.state.dragging.dragPlaceholder.child.height = iconSize;
@@ -826,11 +851,11 @@ class GroupedWindowListApplet extends Applet.Applet {
 
         // add new launcher
         if (this.state.dragging.isForeign) {
-            let pos = this.state.dragging.pos;
+            const pos = this.state.dragging.pos;
             this.clearDragPlaceholder();
             this.clearDragParameters();
 
-            let appId = source.isDraggableApp ? source.get_app_id() : source.getId();
+            const appId = source.isDraggableApp ? source.get_app_id() : source.getId();
             if (appId) {
                 this.acceptNewLauncher(appId, pos);
                 return true;
@@ -872,11 +897,12 @@ class GroupedWindowListApplet extends Applet.Applet {
     }
 
     moveLauncher(source) {
-        let pos = this.state.dragging.pos;
+        let appList = this.getCurrentAppList();
         this.clearDragParameters();
 
         Meta.later_add(Meta.LaterType.BEFORE_REDRAW, () => {
-            this.getCurrentAppList().updateAppGroupIndexes();
+            appList.updateAppGroupIndexes();
+
             // Refresh the group's thumbnails so hoverMenu is aware of the position change
             // In the case of dragging a group that has a delay before Cinnamon can grab its
             // thumbnail texture, e.g., LibreOffice, defer the refresh.
@@ -886,16 +912,32 @@ class GroupedWindowListApplet extends Applet.Applet {
 
             // Handle favoriting if pin on drag is enabled
             if (!source.groupState.app.is_window_backed()) {
-                let opts = {
-                    appId: source.groupState.appId,
-                    app: source.groupState.app,
-                    pos
-                };
-                let refFav = findIndex(this.pinnedFavorites._favorites, (favorite) => favorite.id === source.groupState.appId);
+
+                const refFav = this.pinnedFavorites._favorites.findIndex(
+                    favorite => favorite.id === source.groupState.appId
+                );
                 if (refFav > -1) {
-                    this.pinnedFavorites.moveFavoriteToPos(opts);
+                    
+                    const pinned = []; //pinned apps found before source
+                    for (const appGroup of appList.appList) {
+                        if(appGroup.groupState.appId == source.groupState.appId)
+                            break;
+                        if(!pinned.includes(appGroup.groupState.appId))
+                            pinned.push(appGroup.groupState.appId);
+                    }
+   
+                    const opts = {
+                        appId: source.groupState.appId,
+                        app: source.groupState.app,
+                        pos : pinned.length
+                    };
+
+                    if(pinned.length != refFav)
+                        this.pinnedFavorites.moveFavoriteToPos(opts);
                 }
             }
+
+            this.refreshAllAppLists({ exceptCurrentOne: true });
 
             return false;
         });
@@ -903,25 +945,27 @@ class GroupedWindowListApplet extends Applet.Applet {
         return true;
     }
 
-    onWorkspaceRemoved(metaScreen, index) {
+    onWorkspaceRemoved(workspaceManager, index) {
         if (this.appLists.length <= index) {
             return;
         }
-        let removedLists = [];
+        const removedLists = [];
         for (let i = 0; i < this.appLists.length; i++) {
-            let workspaceIndex = this.appLists[i].metaWorkspace.index();
+            const workspaceIndex = this.appLists[i].metaWorkspace.index();
             if (workspaceIndex === -1) {
-                this.appLists[i].destroy();
-                this.appLists[i] = null;
+                if (this.appLists[i] != null) {
+                    this.appLists[i].destroy();
+                    this.appLists[i] = null;
+                }
                 removedLists.push(i);
             } else {
                 this.appLists[i].index = workspaceIndex;
             }
         }
-        for (let i = 0; i < removedLists.length; i++) {
+        for (let i = removedLists.length - 1; i >= 0; i--) {
             this.appLists.splice(removedLists[i], 1);
         }
-        this.state.set({currentWs: global.screen.get_active_workspace_index()});
+        this.state.set({currentWs: global.workspace_manager.get_active_workspace_index()});
     }
 
     onSwitchWorkspace() {
@@ -930,14 +974,13 @@ class GroupedWindowListApplet extends Applet.Applet {
 
     _onSwitchWorkspace() {
         if (!this.state) return;
-        this.state.set({currentWs: global.screen.get_active_workspace_index()});
-        let metaWorkspace = global.screen.get_workspace_by_index(this.state.currentWs);
+        this.state.set({currentWs: global.workspace_manager.get_active_workspace_index()});
+        const metaWorkspace = global.workspace_manager.get_workspace_by_index(this.state.currentWs);
 
         // If the workspace we switched to isn't in our list,
         // we need to create an AppList for it
-        let refWorkspace = findIndex(
-            this.appLists,
-            (item) => item.metaWorkspace && item.metaWorkspace === metaWorkspace
+        let refWorkspace = this.appLists.findIndex(
+            item => item.metaWorkspace && item.metaWorkspace === metaWorkspace
         );
 
         if (refWorkspace === -1) {
@@ -953,10 +996,11 @@ class GroupedWindowListApplet extends Applet.Applet {
 
         this.actor.remove_all_children();
         this.actor.add_child(this.appLists[refWorkspace].actor);
+        this.actor.queue_relayout();
     }
 
-    onWindowSkipTaskbarChanged(screen, metaWindow) {
-        let appList = this.getCurrentAppList();
+    onWindowSkipTaskbarChanged(display, metaWindow) {
+        const appList = this.getCurrentAppList();
 
         if (metaWindow.is_skip_taskbar()) {
             appList.windowRemoved(appList.metaWorkspace, metaWindow);
@@ -969,14 +1013,6 @@ class GroupedWindowListApplet extends Applet.Applet {
     onUIScaleChange() {
         this.state.set({thumbnailCloseButtonOffset: global.ui_scale > 1 ? -10 : 0});
         this.refreshAllAppLists();
-    }
-
-    onOverviewShow() {
-        this.actor.hide();
-    }
-
-    onOverviewHide() {
-        this.actor.show();
     }
 }
 

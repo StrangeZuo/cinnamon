@@ -15,7 +15,7 @@ FORBIDDEN_KEYVALS = [
     Gdk.KEY_Return,
     Gdk.KEY_space,
     Gdk.KEY_Mode_switch,
-    Gdk.KEY_KP_0, # numerics currently are recogized only as _End, _Down, etc.. with or without numlock
+    Gdk.KEY_KP_0, # numerics currently are recognized only as _End, _Down, etc.. with or without numlock
     Gdk.KEY_KP_1, # Gdk checks numlock and parses out the correct key, but this could change, so list
     Gdk.KEY_KP_2, # these numerics anyhow. (This may differ depending on kb layouts, locales, etc.. but
     Gdk.KEY_KP_3, # I didn't thoroughly check.)
@@ -159,6 +159,8 @@ class CellRendererKeybinding(Gtk.CellRendererText):
         self.path = None
         self.press_event = None
         self.teaching = False
+        self.default_value = True
+        self.text_string = ""
 
         self.update_label()
 
@@ -177,11 +179,20 @@ class CellRendererKeybinding(Gtk.CellRendererText):
             raise AttributeError('unknown property %s' % prop.name)
 
     def update_label(self):
-        text = _("unassigned")
+        text = _("unassigned") if self.default_value else self.text_string
         if self.accel_string:
-            key, codes, mods = Gtk.accelerator_parse_with_keycode(self.accel_string)
+            restore_atab = False
+            valid = self.accel_string
+            if "Above_Tab" in valid:
+                restore_atab = True
+                valid = valid.replace("Above_Tab", "grave")
+
+            key, codes, mods = Gtk.accelerator_parse_with_keycode(valid)
             if codes is not None and len(codes) > 0:
                 text = Gtk.accelerator_get_label_with_keycode(None, key, codes[0], mods)
+            if restore_atab:
+                text = text.replace("`", "AboveTab")
+
         self.set_property("text", text)
 
     def set_value(self, accel_string=None):
@@ -226,6 +237,9 @@ class CellRendererKeybinding(Gtk.CellRendererText):
     def on_key_release(self, widget, event):
         self.ungrab()
         self.teaching = False
+
+        if self.press_event is None:
+            return True
         event = self.press_event
 
         display = widget.get_display()
@@ -283,7 +297,7 @@ class CellRendererKeybinding(Gtk.CellRendererText):
 
         # print("accel_mods: %d, keyval: %d, Storing %s as %s" % (accel_mods, keyval, accel_label, accel_string))
 
-        if (accel_mods == 0 or accel_mods == Gdk.ModifierType.SHIFT_MASK) and event.hardware_keycode != 0:
+        if (accel_mods == 0 or accel_mods == Gdk.ModifierType.SHIFT_MASK) and event.hardware_keycode != 0 and self.default_value:
             if ((keyval >= Gdk.KEY_a                    and keyval <= Gdk.KEY_z)
                 or  (keyval >= Gdk.KEY_A                    and keyval <= Gdk.KEY_Z)
                 or  (keyval >= Gdk.KEY_0                    and keyval <= Gdk.KEY_9)
@@ -298,17 +312,23 @@ class CellRendererKeybinding(Gtk.CellRendererText):
                     or  keyval in FORBIDDEN_KEYVALS):
                 dialog = Gtk.MessageDialog(None,
                                            Gtk.DialogFlags.DESTROY_WITH_PARENT,
-                                           Gtk.MessageType.ERROR,
-                                           Gtk.ButtonsType.OK,
+                                           Gtk.MessageType.WARNING,
+                                           Gtk.ButtonsType.NONE,
                                            None)
+                button = dialog.add_button(_("Cancel"), Gtk.ResponseType.CANCEL)
+                button = dialog.add_button(_("Continue"), Gtk.ResponseType.OK)
+                dialog.set_default_response(Gtk.ResponseType.CANCEL)
+                button.get_style_context().add_class(Gtk.STYLE_CLASS_DESTRUCTIVE_ACTION)
                 dialog.set_default_size(400, 200)
-                msg = _("\nThis key combination, \'<b>%s</b>\' cannot be used because it would become impossible to type using this key.\n\n")
-                msg += _("Please try again with a modifier key such as Control, Alt or Super (Windows key) at the same time.\n")
-                dialog.set_markup(msg % (accel_label))
+                msg = _("\nThis key combination, \'<b>%s</b>\' should not be used because it would become impossible to type using this key. ")
+                msg += _("Please try again using a modifier key such as Control, Alt or Super (Windows key).\n\n")
+                msg += _("Continue only if you are certain this is what you want, otherwise press cancel.\n")
+                dialog.set_markup(msg % accel_label)
                 dialog.show_all()
                 response = dialog.run()
                 dialog.destroy()
-                return True
+                if response != Gtk.ResponseType.OK:
+                    return True
 
         self.press_event = None
         self.set_value(accel_string)

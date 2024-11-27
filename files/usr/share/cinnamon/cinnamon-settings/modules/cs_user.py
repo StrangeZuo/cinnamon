@@ -14,17 +14,17 @@ import shutil
 import os
 import subprocess
 
-import PIL
+from PIL import Image
 import gi
 gi.require_version('AccountsService', '1.0')
-from gi.repository import AccountsService, GLib, GdkPixbuf
+from gi.repository import AccountsService, GLib, GdkPixbuf, XApp
 
 from SettingsWidgets import SidePage
 from ChooserButtonWidgets import PictureChooserButton
 from xapp.GSettingsWidgets import *
 
 class PasswordError(Exception):
-    '''Exception raised when an incorrect password is supplied.'''
+    """Exception raised when an incorrect password is supplied."""
     pass
 
 
@@ -53,7 +53,7 @@ class Module:
 
             self.scale = self.window.get_scale_factor()
 
-            self.face_button = PictureChooserButton(num_cols=4, button_picture_size=64, menu_pictures_size=64*self.scale, keep_square=True)
+            self.face_button = PictureChooserButton(num_cols=4, button_picture_width=64, menu_picture_width=64*self.scale, keep_square=True)
             self.face_button.set_alignment(0.0, 0.5)
             self.face_button.set_tooltip_text(_("Click to change your picture"))
 
@@ -146,7 +146,7 @@ class Module:
         path = "/tmp/temp-account-pic07.jpeg"
 
         # Crop the image to thumbnail size
-        image = PIL.Image.open(path)
+        image = Image.open(path)
         width, height = image.size
 
         if width > height:
@@ -165,7 +165,7 @@ class Module:
         bottom = (height + new_height) / 2
 
         image = image.crop((left, top, right, bottom))
-        image.thumbnail((255, 255), PIL.Image.ANTIALIAS)
+        image.thumbnail((255, 255), Image.LANCZOS)
 
         face_path = os.path.join(self.accountService.get_home_dir(), ".face")
 
@@ -199,14 +199,23 @@ class Module:
         dialog.connect("update-preview", self.update_preview_cb, preview)
 
         response = dialog.run()
+
         if response == Gtk.ResponseType.OK:
-            path = dialog.get_filename()
-            image = PIL.Image.open(path)
-            image.thumbnail((255, 255), PIL.Image.ANTIALIAS)
+            string = dialog.get_filename()
+            print(string)
+            if string.startswith("/"):
+                path = string
+            else:
+                theme = Gtk.IconTheme.get_default()
+                icon_info = theme.lookup_icon_for_scale(string, 256, dialog.get_scale_factor(), Gtk.IconLookupFlags.FORCE_SIZE)
+                path = icon_info.get_filename() if icon_info else None
+
             face_path = os.path.join(self.accountService.get_home_dir(), ".face")
-            image.save(face_path, "png")
-            self.accountService.set_icon_file(face_path)
-            self.face_button.set_picture_from_file(face_path)
+
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_size(path, 255, -1)
+            pixbuf.savev(face_path, "png")
+            self.accountService.set_icon_file(path)
+            self.face_button.set_picture_from_file(path)
 
         dialog.destroy()
 

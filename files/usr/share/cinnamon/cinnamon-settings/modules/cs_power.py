@@ -297,6 +297,10 @@ class Module:
         have_primary = False
         ups_as_primary = False
 
+        have_keyboard = False
+        have_mouse = False
+        have_other = False
+
         # first we look for a discharging UPS, which is promoted to the
         # primary device if it's discharging. Otherwise we use the first
         # listed laptop battery as the primary device
@@ -316,16 +320,10 @@ class Module:
                 else:
                     primary_settings.add_row(self.set_device_ups_primary(device))
             elif device[UP_TYPE] == UPowerGlib.DeviceKind.BATTERY and not ups_as_primary:
-                if not have_primary:
-                    if not primary_settings:
-                        primary_settings = self.battery_page.add_section(_("Batteries"))
-                        primary_settings.add_row(self.set_device_battery_primary(device))
-                        self.show_battery_page = True
-                    have_primary = True
-                else:
-                    widget = self.set_device_battery_additional(device)
-                    if widget:
-                        primary_settings.add_row(widget)
+                if not primary_settings:
+                    primary_settings = self.battery_page.add_section(_("Batteries"))
+                primary_settings.add_row(self.set_device_battery_primary(device))
+                self.show_battery_page = True
             else:
                 if not secondary_settings:
                     secondary_settings = self.battery_page.add_section(_("Devices"))
@@ -333,6 +331,21 @@ class Module:
                     self.show_battery_page = True
                 else:
                     secondary_settings.add_row(self.add_battery_device_secondary(device))
+                if device[UP_TYPE] == UPowerGlib.DeviceKind.KEYBOARD:
+                    have_keyboard = True
+                elif device[UP_TYPE] == UPowerGlib.DeviceKind.MOUSE:
+                    have_mouse = True
+                else:
+                    have_other = True
+
+        if have_keyboard or have_mouse or have_other:
+            notification_settings = self.battery_page.add_section(_("Low battery notifications"))
+            if have_keyboard or have_other:
+                notification_settings.add_row(GSettingsSwitch(_("For wireless keyboard"), CSD_SCHEMA, "power-notifications-for-keyboard"))
+            if have_mouse or have_other:
+                notification_settings.add_row(GSettingsSwitch(_("For wireless mouse"), CSD_SCHEMA, "power-notifications-for-mouse"))
+            if have_other:
+                notification_settings.add_row(GSettingsSwitch(_("For other connected devices"), CSD_SCHEMA, "power-notifications-for-other-devices"))
 
         #show all the widgets in this page, but not the page itself
         visible = self.battery_page.get_visible()
@@ -369,7 +382,7 @@ class Module:
                 details = UPowerGlib.Device.state_to_string(state)
 
         desc = _("UPS")
-        if (model != "" or vendor != ""):
+        if model != "" or vendor != "":
             desc = "%s %s" % (vendor, model)
 
         widget = self.create_battery_row(device_id, "battery", desc, percentage, battery_level, details)
@@ -398,10 +411,14 @@ class Module:
             else:
                 details = UPowerGlib.Device.state_to_string(state)
         else:
-            if state == UPowerGlib.DeviceState.CHARGING or state == UPowerGlib.DeviceState.PENDING_CHARGE:
+            if state == UPowerGlib.DeviceState.CHARGING:
                 details = _("Charging")
-            elif state == UPowerGlib.DeviceState.DISCHARGING or state == UPowerGlib.DeviceState.PENDING_DISCHARGE:
+            elif state == UPowerGlib.DeviceState.PENDING_CHARGE:
+                details = _("Not charging")
+            elif state == UPowerGlib.DeviceState.DISCHARGING:
                 details = _("Using battery power")
+            elif state == UPowerGlib.DeviceState.PENDING_DISCHARGE:
+                details = _("Not discharging")
             elif state == UPowerGlib.DeviceState.FULLY_CHARGED:
                 details = _("Charging - fully charged")
             elif state == UPowerGlib.DeviceState.EMPTY:
@@ -410,35 +427,11 @@ class Module:
                 details = UPowerGlib.Device.state_to_string(state)
 
         desc = _("Battery")
-        if (model != "" or vendor != ""):
+        if model != "" or vendor != "":
             desc = "%s %s" % (vendor, model)
 
         widget = self.create_battery_row(device_id, "battery", desc, percentage, battery_level, details)
         return widget
-
-    def set_device_battery_additional(self, device):
-        state = device[UP_STATE]
-        details = None
-
-        if state == UPowerGlib.DeviceState.FULLY_CHARGED:
-            details = _("Fully charged")
-        elif state == UPowerGlib.DeviceState.EMPTY:
-            details = _("Empty")
-
-        if details:
-            widget = SettingsWidget()
-            icon = Gtk.Image.new_from_icon_name("battery", Gtk.IconSize.DND)
-            widget.pack_start(icon, False, False, 0)
-            label = Gtk.Label(_("Secondary battery"))
-            widget.pack_start(label, False, False, 0)
-            label = Gtk.Label()
-            label.set_markup(details)
-            label.get_style_context().add_class("dim-label")
-            widget.pack_end(label, False, False, 0)
-
-            return widget
-        else:
-            return None
 
     def add_battery_device_secondary(self, device):
         device_id = device[UP_ID]
@@ -472,11 +465,14 @@ class Module:
         elif kind == UPowerGlib.DeviceKind.COMPUTER:
             icon_name = "computer"
             desc = _("Computer")
+        elif kind == UPowerGlib.DeviceKind.GAMING_INPUT:
+            icon_name = "input-gaming"
+            desc = (_("Battery"))
         else:
             icon_name = "battery"
             desc = (_("Battery"))
 
-        if (model != "" or vendor != ""):
+        if model != "" or vendor != "":
             desc = "%s %s" % (vendor, model)
 
         widget = self.create_battery_row(device_id, icon_name, desc, percentage, battery_level)
@@ -803,7 +799,7 @@ class GSettings2ComboBox(SettingsWidget):
 
     def on_my_value_changed(self, widget):
         tree_iter = widget.get_active_iter()
-        if tree_iter != None:
+        if tree_iter is not None:
             self.settings[widget.key] = self.model[tree_iter][0]
 
     def on_my_setting_changed1(self, *args):

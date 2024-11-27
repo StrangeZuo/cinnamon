@@ -32,11 +32,14 @@ Animation.prototype = {
 
     prepare: function() {
         try {
-            this.shroud = new Clutter.Actor({ width: global.screen_width,
-                                              height: global.screen_height,
-                                              reactive: false,
-                                              background_color: new Clutter.Color( { red: 0, green: 0, blue: 0, alpha: 255} )
-                                            });
+            this.shroud = new Clutter.Actor({
+                reactive: false,
+                background_color: new Clutter.Color( { red: 0, green: 0, blue: 0, alpha: 255} )
+            });
+
+            let constraint = new Clutter.BindConstraint({ source: global.stage, coordinate: Clutter.BindCoordinate.ALL });
+            this.shroud.add_constraint(constraint);
+
             Main.layoutManager.addChrome(this.shroud);
 
             let icon_size = 128 * global.ui_scale;
@@ -120,12 +123,12 @@ Animation.prototype = {
 
     _finished: function() {
         if (this.shroud) {
-            this.shroud.destroy();
+            Main.layoutManager.removeChrome(this.shroud);
             this.shroud = null;
         }
 
         if (this.logo) {
-            this.logo.destroy();
+            Main.layoutManager.removeChrome(this.logo);
             this.logo = null;
         }
 

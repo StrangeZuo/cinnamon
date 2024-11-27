@@ -22,7 +22,7 @@ ifneq ($(DEB_HOST_ARCH_OS),linux)
 endif
 
 %:
-	dh $@ --with python3,gir
+	dh $@
 
 override_dh_auto_configure:
 	dh_auto_configure -- $(CONFIGURE_EXTRA_FLAGS)
@@ -30,16 +30,6 @@ override_dh_auto_configure:
 override_dh_auto_test:
 	# Disable tests, upstream doesn't use them
 	:
-
-# Thumbnail path for the window manager themes
-TH_DIR=debian/cinnamon-common/usr/share/cinnamon/thumbnails/metacity-1
-
-override_dh_install-indep:
-	dh_install
-
-	mv $(TH_DIR)/Adwaita.png $(TH_DIR)/Default.png
-
-	rm -f debian/cinnamon-common/usr/share/cinnamon/js/misc/config.js
 
 override_dh_install-arch:
 	dh_install -X.la
@@ -51,3 +41,6 @@ override_dh_makeshlibs:
 	dh_makeshlibs -pcinnamon -Xlibcinnamon
 	dh_makeshlibs --remaining-packages
 
+override_dh_shlibdeps:
+	# cinnamon uses muffin private libraries
+	dh_shlibdeps -l"usr/lib/$(DEB_HOST_MULTIARCH)/muffin"

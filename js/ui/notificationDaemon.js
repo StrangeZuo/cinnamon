@@ -151,11 +151,10 @@ NotificationDaemon.prototype = {
                 let uri = GLib.filename_to_uri(icon, null);
                 return textureCache.load_uri_async(uri, size, size);
             } else {
-                let icon_type = St.IconType.FULLCOLOR;
-                if (icon.search("-symbolic") != -1)
-                    icon_type = St.IconType.SYMBOLIC;
+                // If an icon name is specified, try to load it
+                // in symbolic. If that fails, St reverts to fullcolor anyway
                 return new St.Icon({ icon_name: icon,
-                                     icon_type: icon_type,
+                                     icon_type: St.IconType.SYMBOLIC,
                                      icon_size: size });
             }
         } else if (hints['image-data']) {
@@ -181,14 +180,14 @@ NotificationDaemon.prototype = {
             switch (hints.urgency) {
                 case Urgency.LOW:
                 case Urgency.NORMAL:
-                    stockIcon = 'dialog-information';
+                    stockIcon = 'dialog-information-symbolic';
                     break;
                 case Urgency.CRITICAL:
-                    stockIcon = 'dialog-error';
+                    stockIcon = 'dialog-error-symbolic';
                     break;
             }
             return new St.Icon({ icon_name: stockIcon,
-                                 icon_type: St.IconType.FULLCOLOR,
+                                 icon_type: St.IconType.SYMBOLIC,
                                  icon_size: size });
         }
     },
@@ -236,7 +235,6 @@ NotificationDaemon.prototype = {
         if (!isForTransientNotification) {
             let source = this._lookupSource(title, pid, trayIcon);
             if (source) {
-                source.setTitle(title);
                 return source;
             }
         }
@@ -643,37 +641,6 @@ Source.prototype = {
             this._setSummaryIcon(icon);
 
         this.notify(notification);
-    },
-
-    handleSummaryClick: function() {
-        if (!this.trayIcon)
-            return false;
-
-        let event = Clutter.get_current_event();
-        if (event.type() != Clutter.EventType.BUTTON_RELEASE)
-            return false;
-
-        // Left clicks are passed through only where there aren't unacknowledged
-        // notifications, so it possible to open them in summary mode; right
-        // clicks are always forwarded, as the right click menu is not useful for
-        // tray icons
-        if (event.get_button() == 1 &&
-            this.notifications.length > 0)
-            return false;
-
-        if (Main.overview.visible) {
-            // We can't just connect to Main.overview's 'hidden' signal,
-            // because it's emitted *before* it calls popModal()...
-            let id = global.connect('notify::stage-input-mode', Lang.bind(this,
-                function () {
-                    global.disconnect(id);
-                    this.trayIcon.click(event);
-                }));
-            Main.overview.hide();
-        } else {
-            this.trayIcon.click(event);
-        }
-        return true;
     },
 
     _getApp: function() {

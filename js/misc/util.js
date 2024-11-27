@@ -11,6 +11,7 @@
 
 const GLib = imports.gi.GLib;
 const Gio = imports.gi.Gio;
+const Gtk = imports.gi.Gtk;
 const GObject = imports.gi.GObject;
 const Gir = imports.gi.GIRepository;
 const Mainloop = imports.mainloop;
@@ -20,6 +21,16 @@ const Main = imports.ui.main;
 const _balancedParens = '\\([^\\s()<>]+\\)';
 const _leadingJunk = '[\\s`(\\[{\'\\"<\u00AB\u201C\u2018]';
 const _notTrailingJunk = '[^\\s`!()\\[\\]{};:\'\\".,<>?\u00AB\u00BB\u201C\u201D\u2018\u2019]';
+
+function decodeHTML(str=null) {
+    if (str === null) {
+        return null;
+    }
+
+    return str.replace(/&#(\d+);/g, function(match, dec) {
+        return String.fromCharCode(dec);
+    });
+}
 
 const _urlRegexp = new RegExp(
     '(^|' + _leadingJunk + ')' +
@@ -338,7 +349,7 @@ function fixupPCIDescription(desc) {
         }
     }
 
-    /* Attmept to shorten ID by ignoring certain individual words */
+    /* Attempt to shorten ID by ignoring certain individual words */
     let words = desc.split(' ');
     let out = [ ];
     for (let i = 0; i < words.length; i++) {
@@ -354,72 +365,6 @@ function fixupPCIDescription(desc) {
     }
 
     return out.join(' ');
-}
-
-// key: normal char, value: regex containing all chars with accents
-const _LATINISE_REGEX = {
-    //uppercase
-    A: /[\xC0-\xC5\u0100\u0102\u0104]/g,
-    AE: /\xC6/g,
-    C: /[\xC7\u0106\u0108\u010A\u010C]/g,
-    D: /[\xD0\u010E\u0110]/g,
-    E: /[\xC8-\xCB\u0112\u0114\u0116\u0118\u011A]/g,
-    G: /[\u011C\u011E\u0120\u0122]/g,
-    H: /[\u0124\u0126]/g,
-    I: /[\xCC-\xCF\u0128\u012A\u012C\u0130]/g,
-    IJ: /\u0132/g,
-    J: /[\u012E\u0134]/g,
-    K: /\u0136/g,
-    L: /[\u0139\u013B\u013D\u013F\u0141]/g,
-    N: /[\xD1\u0143\u0145\u0147\u014A]/g,
-    O: /[\xD2-\xD6\xD8\u014C\u014E\u0150]/g,
-    OE: /\u0152/g,
-    R: /[\u0154\u0156\u0158]/g,
-    S: /[\u015A\u015C\u015E\u0160]/g,
-    T: /[\u0162\u0164\u0166]/g,
-    U: /[\xD9-\xDC\u0168\u016A\u016C\u016E\u0170\u0172]/g,
-    W: /\u0174/g,
-    Y: /[\xDD\u0176\u0178]/g,
-    Z: /[\u0179\u017B\u017D]/g,
-
-    //lowercase
-    a: /[\xE0-\xE5\u0101\u0103\u0105]/g,
-    ae: /\xE6/g,
-    c: /[\xE7\u0107\u0109\u010B\u010D]/g,
-    d: /[\u010F\u0111]/g,
-    e: /[\xE8-\xEB\u0113\u0115\u0117\u0119\u011B]/g,
-    g: /[\u011D\u011F\u0121\u0123]/g,
-    h: /[\u0125\u0127]/g,
-    i: /[\xEC-\xEF\u0129\u012B\u012D\u0131]/g,
-    ij: /\u0133/g,
-    j: /[\u012F\u0135]/g,
-    k: /[\u0137\u0138]/g,
-    l: /[\u013A\u013C\u013E\u0140\u0142]/g,
-    n: /[\xF1\u0144\u0146\u0148\u0149\u014B]/g,
-    o: /[\xF2-\xF6\xF8\u014D\u014F\u0151]/g,
-    oe: /\u0153/g,
-    r: /[\u0155\u0157\u0159]/g,
-    s: /[\u015B\u015D\u015F\u0161]/g,
-    t: /[\u0163\u0165\u0167]/g,
-    u: /[\xF9-\xFC\u0169\u016B\u016D\u016F\u0171\u0173]/g,
-    w: /\u0175/g,
-    y: /[\xFD\xFF\u0177]/g,
-    z: /[\u017A\u017C\u017E]/g
-};
-
-
-/**
- * latinise:
- * @string (string): a string
- *
- * Returns (string): @string, replaced accented chars
- */
-function latinise(string){
-    //call every regex to replace chars
-    for(var i in _LATINISE_REGEX){
-        string = string.replace(_LATINISE_REGEX[i], i);
-    }
-    return string;
 }
 
 /**
@@ -447,102 +392,6 @@ function queryCollection(collection, query, indexOnly = false) {
     }
     return indexOnly ? -1 : null;
 }
-
-/**
- * findIndex:
- * @array (array): Array to be iterated.
- * @callback (function): The function to call on every iteration,
- * should return a boolean value.
- *
- * Returns (number): the index of @array, else -1.
- */
-function findIndex(array, callback) {
-    for (let i = 0, len = array.length; i < len; i++) {
-        if (array[i] && callback(array[i], i, array)) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-/**
- * find:
- * @array (array): Array to be iterated.
- * @callback (function): The function to call on every iteration,
- * should return a boolean value.
- *
- * Returns (any): Returns the matched element, else null.
- */
-function find(arr, callback) {
-    for (let i = 0, len = arr.length; i < len; i++) {
-        if (callback(arr[i], i, arr)) {
-            return arr[i];
-        }
-    }
-    return null;
-};
-
-/**
- * each:
- * @array (array|object): Array or object to be iterated.
- * @callback (function): The function to call on every iteration.
- *
- * Iteratee functions may exit iteration early by explicitly returning false.
- */
-function each(obj, callback) {
-    if (Array.isArray(obj)) {
-        for (let i = 0, len = obj.length; i < len; i++) {
-            if (callback(obj[i], i) === false) {
-                return;
-            }
-        }
-    } else {
-        let keys = Object.keys(obj);
-        for (let i = 0, len = keys.length; i < len; i++) {
-            let key = keys[i];
-            callback(obj[key], key);
-        }
-    }
-};
-
-/**
- * filter:
- * @array (array): Array to be iterated.
- * @callback (function): The function to call on every iteration.
- *
- * Returns (array): Returns the new filtered array.
- */
-function filter(arr, callback) {
-    let result = [];
-    for (let i = 0, len = arr.length; i < len; i++) {
-        if (callback(arr[i], i, arr)) {
-            result.push(arr[i]);
-        }
-    }
-    return result;
-};
-
-/**
- * map:
- * @array (array): Array to be iterated.
- * @callback (function): The function to call on every iteration.
- *
- * Returns (array): Returns the new mapped array.
- */
-function map(arr, callback) {
-    if (arr == null) {
-        return [];
-    }
-
-    let len = arr.length;
-    let out = Array(len);
-
-    for (let i = 0; i < len; i++) {
-        out[i] = callback(arr[i], i, arr);
-    }
-
-    return out;
-};
 
 /**
  * tryFn:
@@ -706,7 +555,7 @@ const FastObject = function(o) {
 }
 FastObject();
 function toFastProperties(obj) {
-    each(obj, function(value) {
+    Object.values(obj).forEach( value => {
         if (value && !Array.isArray(value)) FastObject(value);
     });
 };
@@ -786,4 +635,97 @@ function version_exceeds(version, min_version) {
     } else {
         return true;
     }
+}
+
+// Maps .desktop action name to an icon
+const DESKTOP_ACTION_ICON_NAMES = {
+    area_shot: 'screenshot-area',
+    base: 'x-office-database',
+    big_picture: 'view-fullscreen',
+    calc: 'x-office-spreadsheet',
+    community: 'system-users',
+    compose: 'text-editor',
+    contacts: 'x-office-address-book',
+    document: 'document-new',
+    draw: 'x-office-drawing',
+    friends: 'user-available',
+    fullscreen: 'view-fullscreen',
+    impress: 'x-office-presentation',
+    library: 'accessories-dictionary',
+    math: 'x-office-math',
+    mute: 'audio-volume-muted',
+    new_document: 'document-new',
+    new_private_window: 'view-private',
+    new_root_window: 'dialog-password',
+    news: 'news',
+    new_session: 'tab-new-symbolic',
+    new_window: 'window-new',
+    next: 'media-skip-forward',
+    open_computer: 'computer',
+    open_home: 'user-home',
+    open_trash: 'user-trash',
+    play: 'media-playback-start',
+    play_pause: 'media-playback-start',
+    preferences: 'preferences-other',
+    prefs: 'preferences-other',
+    previous: 'media-skip-backward',
+    screen_shot: 'screenshot-fullscreen',
+    screenshots: 'applets-screenshooter',
+    servers: 'network-server',
+    settings: 'preferences-other',
+    ssa: 'screenshot-area',
+    ssf: 'screenshot-fullscreen',
+    ssw: 'screenshot-window',
+    stop_quit: 'media-playback-stop',
+    store: 'store',
+    window: 'window-new',
+    window_shot: 'screenshot-window',
+    writer: 'x-office-document',
+};
+
+/**
+ * getDesktopActionIcon:
+ * @action (string): Action name
+ *
+ * Returns (string|null): Name of the icon associated with this action or null if not found
+ */
+function getDesktopActionIcon(action) {
+    let actionID = '';
+    if (action.toUpperCase() === action) {
+        actionID = action.toLowerCase();
+    } else {
+        // first letter lowercase, replace uppercase with _+lowercase
+        actionID = action.charAt(0).toLowerCase() + action.slice(1);
+        actionID = actionID.replace(/([A-Z])/g, '_$1').toLowerCase();
+    }
+    actionID = actionID.replace(/-/g, '_');
+    
+    if (DESKTOP_ACTION_ICON_NAMES.hasOwnProperty(actionID))
+        return DESKTOP_ACTION_ICON_NAMES[actionID];
+    else return null;
+}
+
+/**
+ * splitByGlyph:
+ * @str (string): The string to be converted
+ *
+ * Converts a string, possibly containing multiple codepoint unicode characters (e.g. emoji), into
+ * an array of unicode graphemes clusters (glyphs). For example: "👩‍👩‍👧‍👧😃".length === 13, but splitByGlyph("👩‍👩‍👧‍👧😃")
+ * returns ["👩‍👩‍👧‍👧", "😃"] which is length 2.
+ * 
+ * Returns (array): Array of unicode grapheme clusters (glyphs).
+ */
+function splitByGlyph(str) {
+    const glyphs = [];
+    const buffer = new Gtk.TextBuffer();
+    buffer.set_text(str, -1);
+    const iter = buffer.get_start_iter();
+    const iter2 = buffer.get_start_iter();
+    
+    while (!iter2.is_end()) {
+        iter2.forward_cursor_position();
+        glyphs.push(buffer.get_text(iter, iter2, false));
+        iter.forward_cursor_position();
+    }
+    return glyphs;
 }

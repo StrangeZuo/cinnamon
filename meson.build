@@ -1,4 +1,4 @@
-project('Cinnamon', 'c', version : '5.0.6', meson_version : '>=0.46.0')
+project('Cinnamon', 'c', version : '6.2.9', meson_version : '>=0.56.0')
 
 gnome = import('gnome')
 i18n = import('i18n')
@@ -9,15 +9,17 @@ version = meson.project_version()
 prefix = get_option('prefix')
 bindir = get_option('bindir')
 datadir = get_option('datadir')
-libdir = get_option('libdir')
+libdir = join_paths(prefix, get_option('libdir'))
 includedir = get_option('includedir')
 libexecdir = get_option('libexecdir')
 desktopdir = join_paths(datadir, 'applications')
+x_sessiondir = join_paths(datadir, 'xsessions')
+wayland_sessiondir = join_paths(datadir, 'wayland-sessions')
 schemadir = join_paths(datadir, 'glib-2.0', 'schemas')
 pkglibdir = join_paths(libdir, meson.project_name().to_lower())
 servicedir = join_paths(datadir, 'dbus-1', 'services')
 pkgdatadir = join_paths(datadir, meson.project_name().to_lower())
-po_dir = join_paths(meson.source_root(), 'po')
+po_dir = join_paths(meson.project_source_root(), 'po')
 
 # dependencies
 cjs = dependency('cjs-1.0', version: '>= 4.8.0')
@@ -29,7 +31,6 @@ dbus = dependency('dbus-1')
 gdkx11 = dependency('gdk-x11-3.0')
 gi = dependency('gobject-introspection-1.0', version: '>= 0.9.2')
 polkit = dependency('polkit-agent-1', version: '>= 0.100')
-xfixes = dependency('xfixes')
 atk = dependency('atk-bridge-2.0')
 gio = dependency('gio-2.0', version: '>= 2.36.0')
 gio_unix = dependency('gio-unix-2.0')
@@ -37,11 +38,10 @@ gl = dependency('gl')
 glib_version = '2.52.0'
 glib = dependency('glib-2.0', version: '>= ' + glib_version)
 gtk = dependency('gtk+-3.0', version: '>= 3.12.0')
-muffin = dependency('libmuffin', version: '>= 4.0.3')
-muffinlibdir = muffin.get_pkgconfig_variable('typelibdir')
+muffin = dependency('libmuffin-0', version: '>= 5.2.0')
+muffin_typelibdir = muffin.get_variable(pkgconfig: 'typelibdir')
 pango = dependency('muffin-cogl-pango-0')
-sn = dependency('libstartup-notification-1.0')
-soup = dependency('libsoup-2.4')
+xapp = dependency('xapp', version: '>= 2.6.0')
 X11 = dependency('x11')
 xml = dependency('libxml-2.0')
 
@@ -70,11 +70,6 @@ python = find_program('python3')
 cinnamon_conf = configuration_data()
 cinnamon_conf.set_quoted('VERSION', version)
 cinnamon_conf.set_quoted('GETTEXT_PACKAGE', meson.project_name().to_lower())
-
-have_xfixes = cc.has_function('XFixesCreatePointerBarrier', dependencies: xfixes)
-if have_xfixes
-    cinnamon_conf.set10('HAVE_XFIXESCREATEPOINTERBARRIER', true)
-endif
 
 have_mallinfo = cc.has_function('mallinfo', prefix: '#include <malloc.h>')
 if have_mallinfo
@@ -107,6 +102,12 @@ config_h = declare_dependency(
 # includes
 include_root = include_directories('.')
 
+if polkit.version()[0] == '0'  # older versions '0.105' ...
+    pkv = 1
+else
+    pkv = polkit.version().to_int()
+endif
+
 # compiler flags
 c_args = [
     '-DDATADIR="@0@"'.format(join_paths(prefix, datadir)),
@@ -114,7 +115,8 @@ c_args = [
     '-DBINDIR="@0@"'.format(join_paths(prefix, bindir)),
     '-DCINNAMON_DATADIR="@0@"'.format(join_paths(prefix, pkgdatadir)),
     '-DJSDIR="@0@/js"'.format(join_paths(prefix, pkgdatadir)),
-    '-DMUFFIN_TYPELIB_DIR="@0@"'.format(muffinlibdir),
+    '-DMUFFIN_TYPELIB_DIR="@0@"'.format(muffin_typelibdir),
+    '-DPOLKIT_VERSION=@0@'.format(pkv),
 ]
 
 if not get_option('deprecated_warnings')
@@ -163,7 +165,7 @@ else
     session_conf.set('REQUIRED', '')
 endif
 
-foreach file : ['cinnamon.session', 'cinnamon2d.session']
+foreach file : ['cinnamon.session', 'cinnamon2d.session', 'cinnamon-wayland.session']
     configure_file(
         input: file + '.in',
         output: file,
@@ -178,5 +180,6 @@ install_subdir(
     strip_directory: true,
 )
 
+subdir('calendar-server')
 subdir('python3')
 subdir('install-scripts')

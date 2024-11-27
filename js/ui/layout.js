@@ -6,6 +6,7 @@
  */
 const Clutter = imports.gi.Clutter;
 const Cinnamon = imports.gi.Cinnamon;
+const GObject = imports.gi.GObject;
 const GLib = imports.gi.GLib;
 const Gio = imports.gi.Gio;
 const Lang = imports.lang;
@@ -47,9 +48,67 @@ Monitor.prototype = {
     },
 
     get inFullscreen() {
-        return global.screen.get_monitor_in_fullscreen(this.index);
+        return global.display.get_monitor_in_fullscreen(this.index);
     }
 };
+
+var UiActor = GObject.registerClass(
+class UiActor extends St.Widget {
+    _init() {
+        super._init();
+        this.skip_paint_actors = new Set();
+    }
+
+    set_skip_paint(child, skip) {
+        var skipping = this.skip_paint_actors.has(child);
+
+        if (skipping === !!skip) {
+            return;
+        }
+
+        if (skip) {
+            this.skip_paint_actors.add(child);
+        } else {
+            this.skip_paint_actors.delete(child);
+        }
+
+        this.queue_redraw();
+    }
+
+    get_skip_paint(child) {
+        return this.skip_paint_actors.has(child);
+    }
+
+    vfunc_get_preferred_width(_forHeight) {
+        let width = global.stage.width;
+        return [width, width];
+    }
+
+    vfunc_get_preferred_height(_forWidth) {
+        let height = global.stage.height;
+        return [height, height];
+    }
+
+    vfunc_paint(context) {
+        for (let child = this.get_first_child(); child != null; child = child.get_next_sibling()) {
+            if (this.skip_paint_actors.has(child))
+                continue;
+            child.paint(context);
+        }
+    }
+
+    vfunc_pick(context) {
+        super.vfunc_pick(context);
+
+        for (let child = this.get_first_child(); child != null; child = child.get_next_sibling()) {
+            if (this.skip_paint_actors.has(child)) {
+                continue;
+            }
+
+            child.pick(context);
+        }
+    }
+});
 
 /**
  * #LayoutManager
@@ -91,7 +150,7 @@ LayoutManager.prototype = {
 
         global.settings.connect("changed::enable-edge-flip", Lang.bind(this, this._onEdgeFlipChanged));
         global.settings.connect("changed::edge-flip-delay", Lang.bind(this, this._onEdgeFlipChanged));
-        global.screen.connect('monitors-changed', Lang.bind(this, this._monitorsChanged));
+        Meta.MonitorManager.get().connect('monitors-changed', Lang.bind(this, this._monitorsChanged));
     },
 
     _onEdgeFlipChanged: function(){
@@ -132,20 +191,22 @@ LayoutManager.prototype = {
     },
 
     _updateMonitors: function() {
-        let screen = global.screen;
-
         this.monitors = [];
-        let nMonitors = screen.get_n_monitors();
-        for (let i = 0; i < nMonitors; i++)
-            this.monitors.push(new Monitor(i, screen.get_monitor_geometry(i)));
+        let nMonitors = global.display.get_n_monitors();
+        for (let i = 0; i < nMonitors; i++) {
+            let rect = global.display.get_monitor_geometry(i);
+            let lmon = global.display.get_monitor_index_for_rect(rect);
 
-        this.primaryIndex = screen.get_primary_monitor();
+            this.monitors.push(new Monitor(lmon, rect));
+        }
+
+        this.primaryIndex = global.display.get_primary_monitor();
         this.primaryMonitor = this.monitors[this.primaryIndex];
     },
 
     _updateBoxes: function() {
         if (this.hotCornerManager)
-            this.hotCornerManager.updatePosition(this.primaryMonitor);
+            this.hotCornerManager.update();
         this._chrome._queueUpdateRegions();
     },
 
@@ -169,7 +230,7 @@ LayoutManager.prototype = {
     },
 
     get currentMonitor() {
-        let index = global.screen.get_current_monitor();
+        let index = global.display.get_current_monitor();
         return Main.layoutManager.monitors[index];
     },
 
@@ -189,7 +250,6 @@ LayoutManager.prototype = {
         this.keyboardBox.hide();
 
         global.stage.hide_cursor();
-        global.background_actor.show();
 
         this.startupAnimation = new StartupAnimation.Animation(this.primaryMonitor,
                                                                ()=>this._startupAnimationComplete());
@@ -204,7 +264,7 @@ LayoutManager.prototype = {
 
     _startupAnimationComplete: function() {
         global.stage.show_cursor();
-        this._coverPane.destroy();
+        this.removeChrome(this._coverPane);
         this._coverPane = null;
         this._chrome.thawUpdateRegions();
 
@@ -375,6 +435,11 @@ LayoutManager.prototype = {
         return this._chrome.findMonitorIndexForActor(actor);
     },
 
+    findMonitorIndexAt: function(x, y) {
+        let [index, monitor] = this._chrome._findMonitorForRect(x, y, 1, 1)
+        return index;
+    },
+
     /**
      * isTrackingChrome:
      * @actor (Clutter.Actor): the actor to check
@@ -422,13 +487,13 @@ Chrome.prototype = {
 
         this._layoutManager.connect('monitors-changed',
                                     Lang.bind(this, this._relayout));
-        global.screen.connect('restacked',
+        global.display.connect('restacked',
                               Lang.bind(this, this._windowsRestacked));
-        global.screen.connect('in-fullscreen-changed', Lang.bind(this, this._updateVisibility));
+        global.display.connect('in-fullscreen-changed', Lang.bind(this, this._updateVisibility));
         global.window_manager.connect('switch-workspace', Lang.bind(this, this._queueUpdateRegions));
 
         // Need to update struts on new workspaces when they are added
-        global.screen.connect('notify::n-workspaces',
+        global.workspace_manager.connect('notify::n-workspaces',
                               Lang.bind(this, this._queueUpdateRegions));
 
         this._relayout();
@@ -482,8 +547,8 @@ Chrome.prototype = {
             return;
         let actorData = this._trackedActors[i];
 
-        if (actorData.addToWindowgroup) global.window_group.remove_actor(actor);
-        else Main.uiGroup.remove_actor(actor);
+        if (actorData.addToWindowgroup) global.window_group.remove_child(actor);
+        else Main.uiGroup.remove_child(actor);
         this._untrackActor(actor);
     },
 
@@ -520,8 +585,11 @@ Chrome.prototype = {
                                                Lang.bind(this, this._queueUpdateRegions));
         actorData.parentSetId = actor.connect('parent-set',
                                               Lang.bind(this, this._actorReparented));
-        // Note that destroying actor will unset its parent, so we don't
-        // need to connect to 'destroy' too.
+        // Note that destroying actor unsets its parent, but does not emit
+        // parent-set during destruction.
+        // https://gitlab.gnome.org/GNOME/mutter/-/commit/f376a318ba90fc29d3d661df4f55698459f31cfa
+        actorData.destroyId = actor.connect('destroy',
+                                            Lang.bind(this, this._untrackActor));
 
         this._trackedActors.push(actorData);
         this._queueUpdateRegions();
@@ -538,6 +606,7 @@ Chrome.prototype = {
         actor.disconnect(actorData.visibleId);
         actor.disconnect(actorData.allocationId);
         actor.disconnect(actorData.parentSetId);
+        actor.disconnect(actorData.destroyId);
 
         this._queueUpdateRegions();
     },
@@ -565,7 +634,7 @@ Chrome.prototype = {
             else if (global.stage_input_mode == Cinnamon.StageInputMode.FULLSCREEN) {
                 let monitor = this.findMonitorForActor(actorData.actor);
 
-                if (global.screen.get_n_monitors() == 1 || !monitor.inFullscreen) {
+                if (global.display.get_n_monitors() == 1 || !monitor.inFullscreen) {
                     visible = true;
                 } else {
                     if (Main.modalActorFocusStack.length > 0) {
@@ -578,11 +647,14 @@ Chrome.prototype = {
                 }
             } else if (this._inOverview)
                 visible = true;
-            else if (!actorData.visibleInFullscreen &&
-                     this.findMonitorForActor(actorData.actor).inFullscreen)
-                visible = false;
-            else
-                visible = true;
+            else {
+                let monitor = this.findMonitorForActor(actorData.actor);
+                
+                if (!actorData.visibleInFullscreen && monitor && monitor.inFullscreen)
+                    visible = false;
+                else
+                    visible = true;
+            }
             Main.uiGroup.set_skip_paint(actorData.actor, !visible);
         }
         this._queueUpdateRegions();
@@ -793,9 +865,9 @@ Chrome.prototype = {
 
         global.set_stage_input_region(rects);
 
-        let screen = global.screen;
-        for (let w = 0; w < screen.n_workspaces; w++) {
-            let workspace = screen.get_workspace_by_index(w);
+        let ws_manager = global.workspace_manager;
+        for (let w = 0; w < ws_manager.n_workspaces; w++) {
+            let workspace = ws_manager.get_workspace_by_index(w);
             workspace.set_builtin_struts(struts);
         }
 

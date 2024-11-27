@@ -9,20 +9,21 @@ const Signals = imports.signals;
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const Pango = imports.gi.Pango;
+const Meta = imports.gi.Meta;
+const Gdk = imports.gi.Gdk;
 
 const Params = imports.misc.params;
 const Util = imports.misc.util;
 
 const Lightbox = imports.ui.lightbox;
 const Main = imports.ui.main;
-const Tweener = imports.ui.tweener;
 
 const Gettext = imports.gettext;
 
-const FADE_IN_BUTTONS_TIME = 0.33;
-const FADE_OUT_DIALOG_TIME = 1.0;
+const FADE_IN_BUTTONS_TIME = 330;
+const FADE_OUT_DIALOG_TIME = 1000;
 
-var OPEN_AND_CLOSE_TIME = 0.1;
+var OPEN_AND_CLOSE_TIME = 100;
 
 var State = {
     OPENED: 0,
@@ -47,8 +48,8 @@ var State = {
  * For simple usage such as displaying a message, or asking for confirmation,
  * the #ConfirmDialog and #NotifyDialog classes may be used instead.
  */
-function ModalDialog() {
-    this._init();
+function ModalDialog(params) {
+    this._init(params);
 }
 
 ModalDialog.prototype = {
@@ -86,14 +87,16 @@ ModalDialog.prototype = {
         this._group.add_actor(this._backgroundBin);
 
         this._dialogLayout = new St.BoxLayout({ style_class: 'modal-dialog',
-                                                vertical:    true });
+                                                vertical:    true,
+                                                important: true });
         if (params.styleClass != null) {
             this._dialogLayout.add_style_class_name(params.styleClass);
         }
 
         if (!this._cinnamonReactive) {
             this._lightbox = new Lightbox.Lightbox(this._group,
-                                                   { inhibitEvents: true });
+                                                   { inhibitEvents: true,
+                                                     radialEffect: true });
             this._lightbox.highlight(this._backgroundBin);
 
             let stack = new Cinnamon.Stack();
@@ -225,14 +228,14 @@ ModalDialog.prototype = {
         // Fade in buttons if there weren't any before
         if (!hadChildren && buttons.length > 0) {
             this._buttonLayout.opacity = 0;
-            Tweener.addTween(this._buttonLayout,
-                             { opacity: 255,
-                               time: FADE_IN_BUTTONS_TIME,
-                               transition: 'easeOutQuad',
-                               onComplete: Lang.bind(this, function() {
-                                   this.emit('buttons-set');
-                               })
-                             });
+            this._buttonLayout.ease({
+                opacity: 255,
+                duration: FADE_IN_BUTTONS_TIME,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                onComplete: () => {
+                    this.emit('buttons-set');
+                }
+            });
         } else {
             this.emit('buttons-set');
         }
@@ -243,15 +246,18 @@ ModalDialog.prototype = {
         let modifiers = Cinnamon.get_event_state(keyPressEvent);
         let ctrlAltMask = Clutter.ModifierType.CONTROL_MASK | Clutter.ModifierType.MOD1_MASK;
         let symbol = keyPressEvent.get_key_symbol();
+
+        let action = this._actionKeys[symbol];
+
+        if (action) {
+            action();
+            return;
+        }
+
         if (symbol === Clutter.KEY_Escape && !(modifiers & ctrlAltMask)) {
             this.close();
             return;
         }
-
-        let action = this._actionKeys[symbol];
-
-        if (action)
-            action();
     },
 
     _onGroupDestroy: function() {
@@ -271,16 +277,15 @@ ModalDialog.prototype = {
             this._lightbox.show();
         this._group.opacity = 0;
         this._group.show();
-        Tweener.addTween(this._group,
-                         { opacity: 255,
-                           time: OPEN_AND_CLOSE_TIME,
-                           transition: 'easeOutQuad',
-                           onComplete: Lang.bind(this,
-                               function() {
-                                   this.state = State.OPENED;
-                                   this.emit('opened');
-                               })
-                         });
+        this._group.ease({
+            opacity: 255,
+            duration: OPEN_AND_CLOSE_TIME,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => {
+                this.state = State.OPENED;
+                this.emit('opened');
+            }
+        });
     },
 
     setInitialKeyFocus: function(actor) {
@@ -320,16 +325,15 @@ ModalDialog.prototype = {
         this.popModal(timestamp);
         this._savedKeyFocus = null;
 
-        Tweener.addTween(this._group,
-                         { opacity: 0,
-                           time: OPEN_AND_CLOSE_TIME,
-                           transition: 'easeOutQuad',
-                           onComplete: Lang.bind(this,
-                               function() {
-                                   this.state = State.CLOSED;
-                                   this._group.hide();
-                               })
-                         });
+        this._group.ease({
+            opacity: 0,
+            duration: OPEN_AND_CLOSE_TIME,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => {
+                this.state = State.CLOSED;
+                this._group.hide();
+            }
+        });
     },
 
     /**
@@ -351,7 +355,11 @@ ModalDialog.prototype = {
         else
             this._savedKeyFocus = null;
         Main.popModal(this._group, timestamp);
-        global.gdk_screen.get_display().sync();
+
+        if (!Meta.is_wayland_compositor()) {
+            Gdk.Display.get_default().sync();
+        }
+
         this._hasModal = false;
 
         if (!this._cinnamonReactive)
@@ -410,15 +418,14 @@ ModalDialog.prototype = {
             return;
 
         this.popModal(timestamp);
-        Tweener.addTween(this._dialogLayout,
-                         { opacity: 0,
-                           time:    FADE_OUT_DIALOG_TIME,
-                           transition: 'easeOutQuad',
-                           onComplete: Lang.bind(this,
-                               function() {
-                                   this.state = State.FADED_OUT;
-                               })
-                         });
+        this._dialogLayout.ease({
+            opacity: 0,
+            duration: FADE_OUT_DIALOG_TIME,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => {
+                this.state = State.FADED_OUT
+            }
+        });
     }
 };
 Signals.addSignalMethods(ModalDialog.prototype);
@@ -449,6 +456,9 @@ ConfirmDialog.prototype = {
      */
     _init: function(label, callback){
         ModalDialog.prototype._init.call(this);
+        this.contentLayout.add(new St.Label({ text:        _("Confirm"),
+                                              style_class: 'confirm-dialog-title',
+                                              important:   true }));
         this.contentLayout.add(new St.Label({text: label}));
         this.callback = callback;
 
@@ -549,8 +559,13 @@ InfoOSD.prototype = {
      * primary monitor if not specified.
      */
     show: function(monitorIndex) {
-        if (!monitorIndex) monitorIndex = 0;
-        let monitor = Main.layoutManager.monitors[monitorIndex];
+        let monitor;
+
+        if (!monitorIndex) {
+            monitor = Main.layoutManager.primaryMonitor;
+        } else {
+            monitor = Main.layoutManager.monitors[monitorIndex];
+        }
 
         // The actor has to be shown first so that the width and height can be calculated properly
         this.actor.opacity = 0;
@@ -580,7 +595,6 @@ InfoOSD.prototype = {
     destroy: function() {
         this.hide();
         Main.layoutManager.removeChrome(this.actor);
-        this.actor.destroy();
     },
 
     /**

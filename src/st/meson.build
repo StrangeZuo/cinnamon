@@ -13,8 +13,8 @@ st_headers = [
     'st-group.h',
     'st-icon.h',
     'st-icon-colors.h',
-    'st-im-text.h',
     'st-label.h',
+    'st-image-content.h',
     'st-polygon.h',
     'st-private.h',
     'st-scrollable.h',
@@ -30,9 +30,9 @@ st_headers = [
     'st-theme-context.h',
     'st-theme-node.h',
     'st-types.h',
+    'st-viewport.h',
     'st-widget.h',
     'st-widget-accessible.h',
-    'st-cogl-wrapper.h',
 ]
 
 st_non_gir = [
@@ -89,6 +89,7 @@ st_private_headers = [
     'croco/cr-utils.h',
     'croco/libcroco-config.h',
     'croco/libcroco.h',
+    'st-background-effect.h',
     'st-private.h',
     'st-table-private.h',
     'st-theme-private.h',
@@ -105,14 +106,13 @@ st_gir_sources = [
     'st-box-layout-child.c',
     'st-button.c',
     'st-clipboard.c',
-    'st-cogl-wrapper.c',
     'st-drawing-area.c',
     'st-entry.c',
     'st-focus-manager.c',
     'st-group.c',
     'st-icon.c',
     'st-icon-colors.c',
-    'st-im-text.c',
+    'st-image-content.c',
     'st-label.c',
     'st-polygon.c',
     'st-private.c',
@@ -130,9 +130,21 @@ st_gir_sources = [
     'st-theme-node.c',
     'st-theme-node-drawing.c',
     'st-theme-node-transition.c',
+    'st-viewport.c',
     'st-widget.c',
     st_headers,
 ]
+
+data_to_c = find_program(meson.project_source_root() + '/src/data-to-c.pl')
+
+glsl_sources = custom_target('scroll-view-fade-glsl',
+  input: ['st-scroll-view-fade.glsl'],
+  output: ['st-scroll-view-fade-generated.h'],
+  capture: true,
+  command: [data_to_c, '@INPUT@', 'st_scroll_view_fade_glsl']
+)
+
+st_non_gir += glsl_sources
 
 st_enum_types = gnome.mkenums_simple(
     'st-enum-types',
@@ -171,6 +183,8 @@ libst_deps = [
     muffin,
 ]
 
+st_inc = include_directories('.', '..')
+
 libst = library(
     'st',
     st_sources,
@@ -178,8 +192,8 @@ libst = library(
         '-DST_H_INSIDE',
         '-DG_LOG_DOMAIN="St"'
     ],
-    build_rpath: muffinlibdir,
-    install_rpath: muffinlibdir,
+    build_rpath: muffin_typelibdir,
+    install_rpath: muffin_typelibdir,
     include_directories: include_root,
     dependencies: libst_deps,
     install: true,
@@ -197,7 +211,7 @@ st_dep = declare_dependency(
 st_gir_includes = [
     'Clutter-0',
     'ClutterX11-0',
-    'Meta-Muffin.0',
+    'Meta-0',
     'Gtk-3.0',
 ]
 
@@ -209,10 +223,11 @@ st_gir = gnome.generate_gir(
     dependencies: libst_deps,
     identifier_prefix: 'St',
     symbol_prefix: 'st',
+    export_packages: 'st',
     includes: st_gir_includes,
     install: true,
     install_dir_typelib: pkglibdir,
-    install_dir_gir: false,
+    install_dir_gir: pkgdatadir,
     extra_args: [
         '-DST_COMPILATION',
         '--quiet',

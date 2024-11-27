@@ -7,15 +7,17 @@ const Signals = imports.signals;
 const Lang = imports.lang;
 const St = imports.gi.St;
 const Cinnamon = imports.gi.Cinnamon;
-const Gdk = imports.gi.Gdk;
 
 const Main = imports.ui.main;
 const MessageTray = imports.ui.messageTray;
 const Tweener = imports.ui.tweener;
 const WorkspacesView = imports.ui.workspacesView;
+// ***************
+// This shows all of the windows on the current workspace
+// ***************
 
 // Time for initial animation going into Overview mode
-var ANIMATION_TIME = 0.25;
+var ANIMATION_TIME = 0.2;
 
 const SwipeScrollDirection = WorkspacesView.SwipeScrollDirection;
 
@@ -134,7 +136,7 @@ Overview.prototype = {
                 let dt = (event.get_time() - this._lastMotionTime) / 1000;
                 let passedHalf = Math.abs(distance / difference) > 0.5;
 
-                /* Switch to the next page if the scroll ammount is more
+                /* Switch to the next page if the scroll amount is more
                    than half the page width or is faster than 25px/s.
                    This number comes from experimental tests. */
                 if (Math.abs(distance) > dt * 25 || passedHalf) {
@@ -252,7 +254,13 @@ Overview.prototype = {
         this._background.set_position(0, 0);
         this._group.add_actor(this._background);
 
-        let desktopBackground = Meta.BackgroundActor.new_for_screen(global.screen);
+        let desktopBackground;
+        if (!Meta.is_wayland_compositor()) {
+            desktopBackground = Meta.X11BackgroundActor.new_for_display(global.display);
+        } else {
+            desktopBackground = new Clutter.Actor();
+        }
+
         this._background.add_actor(desktopBackground);
 
         let backgroundShade = new St.Bin({style_class: 'workspace-overview-background-shade'});
@@ -272,30 +280,21 @@ Overview.prototype = {
         this._coverPane.connect('event', () => true);
         this._coverPane.hide();
 
-        // All the the actors in the window group are completely obscured,
-        // hiding the group holding them while the Overview is displayed greatly
-        // increases performance of the Overview especially when there are many
-        // windows visible.
-        //
-        // If we switched to displaying the actors in the Overview rather than
-        // clones of them, this would obviously no longer be necessary.
-        //
         // Disable unredirection while in the overview
-        Meta.disable_unredirect_for_screen(global.screen);
-        global.window_group.hide();
+        Meta.disable_unredirect_for_display(global.display);
         this._group.show();
 
         this.workspacesView = new WorkspacesView.WorkspacesView();
         global.overlay_group.add_actor(this.workspacesView.actor);
         Main.panelManager.disablePanels();
 
-        let animate = Main.wm.settingsState['desktop-effects'];
+        let animate = Main.animations_enabled;
         if (animate) {
             this._group.opacity = 0;
             Tweener.addTween(this._group, {
                 opacity: 255,
                 transition: 'easeOutQuad',
-                time: ANIMATION_TIME,
+                time: ANIMATION_TIME * 0.45,
                 onComplete: this._showDone,
                 onCompleteScope: this
             });
@@ -408,12 +407,12 @@ Overview.prototype = {
 
         this.workspacesView.hide();
 
-        let animate = Main.wm.settingsState['desktop-effects'];
+        let animate = Main.animations_enabled;
         if (animate) {
             // Make other elements fade out.
             Tweener.addTween(this._group, {
                 opacity: 0,
-                transition: 'easeOutQuad',
+                transition: 'easeInQuad',
                 time: ANIMATION_TIME,
                 onComplete: this._hideDone,
                 onCompleteScope: this
@@ -451,9 +450,7 @@ Overview.prototype = {
         this._background = null;
 
         // Re-enable unredirection
-        Meta.enable_unredirect_for_screen(global.screen);
-
-        global.window_group.show();
+        Meta.enable_unredirect_for_display(global.display);
 
         this.workspacesView.destroy();
         this.workspacesView = null;

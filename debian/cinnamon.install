@@ -9,8 +9,10 @@ usr/share/applications/cinnamon-menu-editor.desktop
 usr/share/applications/cinnamon-onscreen-keyboard.desktop
 usr/share/applications/cinnamon-settings-*.desktop
 usr/share/applications/cinnamon-settings.desktop
+usr/share/applications/cinnamon-wayland.desktop
 usr/share/applications/cinnamon.desktop
 usr/share/applications/cinnamon2d.desktop
-usr/share/cinnamon/js/misc/config.js
 usr/share/dbus-1/services/*.Cinnamon.*
+usr/share/dbus-1/services/org.cinnamon.CalendarServer.service
 usr/share/man/*/*cinnamon*
+usr/share/xdg-desktop-portal/

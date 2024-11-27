@@ -2,13 +2,16 @@ From: Debian Cinnamon Team <pkg-cinnamon-team@lists.alioth.debian.org>
 Date: Sun, 13 Mar 2016 19:07:25 +0100
 Subject: background
 
+Forwarded: not-needed
 ---
- files/usr/share/cinnamon/cinnamon-settings/modules/cs_backgrounds.py |    2 +-
+ files/usr/share/cinnamon/cinnamon-settings/modules/cs_backgrounds.py | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
+diff --git a/files/usr/share/cinnamon/cinnamon-settings/modules/cs_backgrounds.py b/files/usr/share/cinnamon/cinnamon-settings/modules/cs_backgrounds.py
+index 844e10d..fbb1357 100755
 --- a/files/usr/share/cinnamon/cinnamon-settings/modules/cs_backgrounds.py
 +++ b/files/usr/share/cinnamon/cinnamon-settings/modules/cs_backgrounds.py
-@@ -315,7 +315,7 @@ class Module:
+@@ -319,7 +319,7 @@ class Module:
      def get_system_backgrounds(self):
          picture_list = []
          folder_list = []

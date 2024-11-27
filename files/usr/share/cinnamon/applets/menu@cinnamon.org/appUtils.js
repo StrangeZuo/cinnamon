@@ -1,15 +1,27 @@
 const Cinnamon = imports.gi.Cinnamon;
 const CMenu = imports.gi.CMenu;
 
-const Util = imports.misc.util;
-
 let appsys = Cinnamon.AppSystem.get_default();
 
-// sort apps by their latinised name
+function decomp_string(s) {
+    return s.normalize('NFKD').replace(/\p{Grapheme_Extend}/gu,"").toLowerCase();
+}
+
+function decomp_stripped(s) {
+    return decomp_string(s).replace(/[^\p{L}\p{N}]/gu, "");
+
+}
+
+function decomp_unstripped(s) {
+    return decomp_string(s);
+}
+
+// sort apps by their locale sensitive sort order
 function appSort(a, b) {
-    a = Util.latinise(a[0].get_name().toLowerCase());
-    b = Util.latinise(b[0].get_name().toLowerCase());
-    return a > b;
+    const an = a[0].get_name();
+    const bn = b[0].get_name();
+
+    return an.localeCompare(bn, undefined, {sensitivity: "base", ignorePunctuation: true});
 }
 
 // sort cmenu directories with admin and prefs categories last
@@ -28,16 +40,9 @@ function dirSort(a, b) {
         return 1;
     }
 
-    let nameA = a.get_name().toLowerCase();
-    let nameB = b.get_name().toLowerCase();
-
-    if (nameA > nameB) {
-        return 1;
-    }
-    if (nameA < nameB) {
-        return -1;
-    }
-    return 0;
+    const nameA = a.get_name();
+    const nameB = b.get_name();
+    return nameA.localeCompare(nameB, undefined, {sensitivity: "base", ignorePunctuation: true});
 }
 
 /* returns all apps and the categories they belong to, and all top level categories

@@ -1,10 +1,12 @@
 debian/thumbnails /usr/share/cinnamon/
 etc/xdg/menus/cinnamon*
 usr/lib/python3/dist-packages/cinnamon/*.py
+usr/libexec/cinnamon-calendar-server.py
 usr/share/cinnamon-session
 usr/share/cinnamon/
 usr/share/desktop-directories/cinnamon*
 usr/share/glib-2.0/schemas/*cinnamon*
 usr/share/icons/
 usr/share/polkit-1/actions/org.cinnamon.settings-users.policy
+usr/share/wayland-sessions
 usr/share/xsessions/cinnamon*

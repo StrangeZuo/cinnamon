@@ -26,6 +26,7 @@ class CinnamonNotificationsApplet extends Applet.TextIconApplet {
         this.settings.bind("showEmptyTray", "showEmptyTray", this._show_hide_tray);
         this.settings.bind("keyOpen", "keyOpen", this._setKeybinding);
         this.settings.bind("keyClear", "keyClear", this._setKeybinding);
+        this.settings.bind("showNotificationCount", "showNotificationCount", this.update_list);
         this._setKeybinding();
 
         // Layout
@@ -43,17 +44,17 @@ class CinnamonNotificationsApplet extends Applet.TextIconApplet {
         this._blinking = false;
         this._blink_toggle = false;
     }
-    
+
     _setKeybinding() {
         Main.keybindingManager.addHotKey("notification-open-" + this.instance_id, this.keyOpen, Lang.bind(this, this._openMenu));
         Main.keybindingManager.addHotKey("notification-clear-" + this.instance_id, this.keyClear, Lang.bind(this, this._clear_all));
     }
-    
+
     on_applet_removed_from_panel () {
         Main.keybindingManager.removeHotKey("notification-open-" + this.instance_id);
         Main.keybindingManager.removeHotKey("notification-clear-" + this.instance_id);
     }
-    
+
     _openMenu() {
         this._update_timestamp();
         this.menu.toggle();
@@ -96,7 +97,8 @@ class CinnamonNotificationsApplet extends Applet.TextIconApplet {
         this.scrollview = new St.ScrollView({ x_fill: true, y_fill: true, y_align: St.Align.START, style_class: "vfade"});
         this._maincontainer.add(this.scrollview);
         this.scrollview.add_actor(this._notificationbin);
-        this.scrollview.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC);
+        this.scrollview.set_policy(St.PolicyType.NEVER, St.PolicyType.AUTOMATIC);
+        this.scrollview.set_clip_to_allocation(true);
 
         let vscroll = this.scrollview.get_vscroll_bar();
         vscroll.connect('scroll-start', Lang.bind(this, function() {
@@ -140,7 +142,7 @@ class CinnamonNotificationsApplet extends Applet.TextIconApplet {
         // Add notification to list.
         notification._inNotificationBin = true;
         this.notifications.push(notification);
-        // Steal the notication panel.
+        // Steal the notification panel.
         this._notificationbin.add(notification.actor);
         notification.actor._parent_container = this._notificationbin;
         notification.actor.add_style_class_name('notification-applet-padding');
@@ -196,6 +198,11 @@ class CinnamonNotificationsApplet extends Applet.TextIconApplet {
                 if (!this.showEmptyTray) {
                     this.actor.hide();
                 }
+            }
+
+            if (!this.showNotificationCount) {  // Don't show notification count
+                this.set_applet_label('');
+                // this.clear_action.actor.hide();
             }
             this.menu_label.label.set_text(stringify(count));
             this._notificationbin.queue_relayout();
@@ -301,9 +308,9 @@ function timeify(orig_time) {
     let diff = Math.floor((now.getTime() - orig_time.getTime()) / 1000); // get diff in seconds
     let str;
     if (use_24h) {
-        str = orig_time.toLocaleFormat('%T');
+        str = orig_time.toLocaleFormat('%x, %T');
     } else {
-        str = orig_time.toLocaleFormat('%r');
+        str = orig_time.toLocaleFormat('%x, %r');
     }
     switch (true) {
         case (diff <= 15): {

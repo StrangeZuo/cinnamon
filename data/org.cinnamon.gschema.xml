@@ -30,7 +30,7 @@
     </key>
 
     <key name="enabled-applets" type="as">
-      <default>['panel1:left:0:menu@cinnamon.org', 'panel1:left:1:show-desktop@cinnamon.org', 'panel1:left:2:grouped-window-list@cinnamon.org', 'panel1:right:0:systray@cinnamon.org', 'panel1:right:1:xapp-status@cinnamon.org', 'panel1:right:2:notifications@cinnamon.org', 'panel1:right:3:printers@cinnamon.org', 'panel1:right:4:removable-drives@cinnamon.org', 'panel1:right:5:keyboard@cinnamon.org', 'panel1:right:6:favorites@cinnamon.org', 'panel1:right:7:network@cinnamon.org', 'panel1:right:8:sound@cinnamon.org', 'panel1:right:9:power@cinnamon.org', 'panel1:right:10:calendar@cinnamon.org']</default>
+      <default>['panel1:left:0:menu@cinnamon.org', 'panel1:left:1:separator@cinnamon.org', 'panel1:left:2:grouped-window-list@cinnamon.org', 'panel1:right:0:systray@cinnamon.org', 'panel1:right:1:xapp-status@cinnamon.org', 'panel1:right:2:notifications@cinnamon.org', 'panel1:right:3:printers@cinnamon.org', 'panel1:right:4:removable-drives@cinnamon.org', 'panel1:right:5:keyboard@cinnamon.org', 'panel1:right:6:favorites@cinnamon.org', 'panel1:right:7:network@cinnamon.org', 'panel1:right:8:sound@cinnamon.org', 'panel1:right:9:power@cinnamon.org', 'panel1:right:10:calendar@cinnamon.org', 'panel1:right:11:cornerbar@cinnamon.org']</default>
       <summary>Uuids of applets to enable</summary>
       <description>
         Cinnamon applets have a uuid property; this key lists applets
@@ -94,7 +94,10 @@
       <summary>The interval between each possible grid position when desklets "snap"</summary>
       <description>If desklet-snap is enabled, the possible positions of desklets will be all integer multiples of the value of "desklet-snap-size"</description>
     </key>
-
+    <key name="lock-desklets" type="b">
+      <default>false</default>
+      <summary> Locks the current position of all desklets and prevents dragging</summary>
+    </key>
     <key name="panels-enabled" type="as">
       <default>['1:0:bottom']</default>
       <summary>List of panels used</summary>
@@ -164,14 +167,6 @@
       </description>
     </key>
 
-    <key name="desktop-effects" type="b">
-      <default>true</default>
-      <summary>Enable desktop effects</summary>
-      <description>
-        Whether to enable desktop effects and window animations.
-      </description>
-    </key>
-
     <key name="desktop-effects-on-dialogs" type="b">
       <default>true</default>
       <summary>Enable desktop effects on dialog boxes</summary>
@@ -188,145 +183,62 @@
       </description>
     </key>
 
-    <key type="s" name="desktop-effects-style">
-      <default>"cinnamon"</default>
-      <summary>The style of desktop effects</summary>
+    <key name="desktop-effects-workspace" type="b">
+      <default>true</default>
+      <summary>Enable desktop effects in the Cinnamon ui</summary>
       <description>
-        An overall style used for desktop effects.
-        This key should not be edited directly.
+        This affects switching workspaces, expo and scale.
       </description>
     </key>
 
-    <key type="s" name="desktop-effects-close-effect">
+    <key name="desktop-effects" type="b">
+      <default>true</default>
+      <summary>Enable desktop effects</summary>
+      <description>
+        Whether to enable desktop effects and window animations.
+      </description>
+    </key>
+
+    <key type="s" name="desktop-effects-close">
       <default>"traditional"</default>
       <summary>Effect used when closing windows</summary>
       <description>
-       An effect: scale, fade, traditional, none
+       An effect: traditional, fly, none
       </description>
     </key>
 
-     <key name="desktop-effects-close-transition" type="s">
-      <default>"easeOutQuad"</default>
-      <summary>Transition used when closing windows</summary>
-      <description>
-       A Tweener transition
-      </description>
-    </key>
-
-    <key type="i" name="desktop-effects-close-time">
-      <default>120</default>
-      <summary>Duration of the effect (in milliseconds)</summary>
-      <description>
-       Duration of the effect (in milliseconds)
-      </description>
-    </key>
-
-    <key type="s" name="desktop-effects-map-effect">
+    <key type="s" name="desktop-effects-map">
       <default>"traditional"</default>
       <summary>Effect used when mapping windows</summary>
       <description>
-       An effect: scale, fade, traditional, none
+       An effect: traditional, fly, fade, none
       </description>
     </key>
 
-     <key name="desktop-effects-map-transition" type="s">
-      <default>"easeOutQuad"</default>
-      <summary>Transition used when mapping windows</summary>
-      <description>
-       A Tweener transition
-      </description>
-    </key>
-
-    <key type="i" name="desktop-effects-map-time">
-      <default>100</default>
-      <summary>Duration of the effect (in milliseconds)</summary>
-      <description>
-       Duration of the effect (in milliseconds)
-      </description>
-    </key>
-
-
-    <key type="s" name="desktop-effects-minimize-effect">
+    <key type="s" name="desktop-effects-minimize">
       <default>"traditional"</default>
       <summary>Effect used when minimizing windows</summary>
       <description>
-       An effect: traditional, scale, fade, traditional, none
+       An effect: traditional, fly, fade, none
       </description>
     </key>
 
-     <key name="desktop-effects-minimize-transition" type="s">
-      <default>"easeInQuad"</default>
-      <summary>Transition used when minimizing windows</summary>
+    <key type="b" name="desktop-effects-change-size">
+      <default>true</default>
+      <summary>Whether to show an animation when unmaximizing/tiling/snapping windows</summary>
       <description>
-       A Tweener transition
       </description>
     </key>
 
-    <key type="i" name="desktop-effects-minimize-time">
-      <default>160</default>
-      <summary>Duration of the effect (in milliseconds)</summary>
-      <description>
-       Duration of the effect (in milliseconds)
-      </description>
-    </key>
-
-    <key type="s" name="desktop-effects-maximize-effect">
-      <default>"none"</default>
+    <key type="s" name="desktop-effects-sizechange-effect">
+      <default>"scale"</default>
       <summary>Effect used when maximizing windows</summary>
       <description>
        An effect: none
       </description>
     </key>
 
-     <key name="desktop-effects-maximize-transition" type="s">
-      <default>"easeInExpo"</default>
-      <summary>Transition used when maximizing windows</summary>
-      <description>
-       A Tweener transition
-      </description>
-    </key>
-
-    <key type="i" name="desktop-effects-maximize-time">
-      <default>100</default>
-      <summary>Duration of the effect (in milliseconds)</summary>
-      <description>
-       Duration of the effect (in milliseconds)
-      </description>
-    </key>
-
-    <key type="s" name="desktop-effects-unmaximize-effect">
-      <default>"none"</default>
-      <summary>Effect used when unmaximizing windows</summary>
-      <description>
-       An effect: none
-      </description>
-    </key>
-
-     <key name="desktop-effects-unmaximize-transition" type="s">
-      <default>"easeNone"</default>
-      <summary>Transition used when unmaximizing windows</summary>
-      <description>
-       A Tweener transition
-      </description>
-    </key>
-
-    <key type="i" name="desktop-effects-unmaximize-time">
-      <default>100</default>
-      <summary>Duration of the effect (in milliseconds)</summary>
-      <description>
-       Duration of the effect (in milliseconds)
-      </description>
-    </key>
-
-    <key type="s" name="desktop-effects-tile-effect">
-      <default>"none"</default>
-      <summary>Effect used when maximizing windows</summary>
-      <description>
-       An effect: none
-      </description>
-    </key>
-
-     <key name="desktop-effects-tile-transition" type="s">
+     <key name="desktop-effects-sizechange-transition" type="s">
       <default>"easeInQuad"</default>
       <summary>Transition used when maximizing windows</summary>
       <description>
@@ -334,12 +246,18 @@
       </description>
     </key>
 
-    <key type="i" name="desktop-effects-tile-time">
+    <key type="i" name="desktop-effects-sizechange-time">
       <default>100</default>
       <summary>Duration of the effect (in milliseconds)</summary>
       <description>
        Duration of the effect (in milliseconds)
       </description>
+    </key>
+
+    <key type="i" name="window-effect-speed">
+      <default>1</default>
+      <range min="0" max="2"/>
+      <summary>Speed multiplier for window-effects</summary>
     </key>
 
     <key type="b" name="startup-animation">
@@ -511,12 +429,14 @@
       <summary>Show all windows from all workspaces</summary>
     </key>
 
+    <key type="b" name="alttab-switcher-warp-mouse-pointer">
+      <default>false</default>
+      <summary>Warp mouse pointer to the new focused window</summary>
+    </key>
+
     <key name="bring-windows-to-current-workspace" type="b">
       <default>false</default>
-      <summary>Brings windows requiring attention to the current workspace</summary>
-      <description>
-        When enabled, if a window requires attention, it is brought to the current workspace.
-      </description>
+      <summary>not used - lives in org.cinnamon.muffin now</summary>
     </key>
 
     <key name="prevent-focus-stealing" type="b">
@@ -581,7 +501,27 @@
       </description>
     </key>
 
-    <child name="theme" schema="org.cinnamon.theme"/>   
+    <key type="b" name="allow-other-notification-handlers">
+      <default>false</default>
+      <summary>If true, Cinnamon will no longer attempt to be the session notification handler.</summary>
+    </key>
+
+    <key type="s" name="system-icon">
+      <default>""</default>
+      <summary>The logo to use in the system info settings</summary>
+      <description>
+        An icon name or absolute path to an icon, which will be used for the system icon in the "System Info" settings app.
+        Disabled if no value is set.
+      </description>
+    </key>
+
+    <key type="b" name="center-warped-pointer">
+      <default>true</default>
+      <summary>Center the pointer on the new monitor</summary>
+      <description>If true, the pointer will be set to the center of the new monitor when using pointer next/previous shortcuts.</description>
+    </key>
+
+    <child name="theme" schema="org.cinnamon.theme"/>
     <child name="recorder" schema="org.cinnamon.recorder"/>
     <child name="keyboard" schema="org.cinnamon.keyboard"/>
     <child name="desklets" schema="org.cinnamon.desklets" />
@@ -641,7 +581,18 @@
        Controls the default label used by the application menu.
       </description>
     </key>
-
+    <key name="hoverclick-action" type="s">
+      <default>"single"</default>
+      <summary>The type of mouse action to be performed using hoverkey (single, double, drag, secondary)</summary>
+    </key>
+    <key name="hoverclick-layout" type="s">
+      <default>"vertical::both"</default>
+      <summary>This defines the layout for the hoverkey window - format is vertical | horizontal :: icons | text | both</summary>
+    </key>
+    <key name="hoverclick-position" type="s">
+      <default>""</default>
+      <summary>Stores the position of the hoverclick window so it can be restored there later - format is x::y</summary>
+    </key>
   </schema>
 
   <schema id="org.cinnamon.theme" path="/org/cinnamon/theme/"
@@ -985,10 +936,20 @@
     </key>
   </schema>
 
-  <schema id="org.cinnamon.keybindings" path="/org/cinnamon/keybindings/">
-    <key name="custom-list" type="as">
+  <schema id="org.cinnamon.runtime-keybindings" path="/org/cinnamon/runtime-keybindings/">
+    <key name="placeholder" type="b">
+      <default>false</default>
+    </key>
+   </schema>
+
+  <schema id="org.cinnamon.runtime-keybindings.runtime-keybinding">
+    <key name="bindings" type="as">
       <default>[]</default>
-      <summary>deprecated - moved to org.cinnamon.desktop.keybindings</summary>
+      <summary>Keybinding array for runtime keybinding.</summary>
+    </key>
+    <key name="action-id" type="i">
+      <default>0</default>
+      <summary>Action id for keybinding</summary>
     </key>
   </schema>
 

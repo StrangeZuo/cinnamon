@@ -20,7 +20,8 @@ const SignalManager = imports.misc.signalManager;
 const PANEL_EDIT_MODE_KEY = 'panel-edit-mode';
 const PANEL_LAUNCHERS_KEY = 'panel-launchers';
 
-const CUSTOM_LAUNCHERS_PATH = GLib.get_home_dir() + '/.cinnamon/panel-launchers';
+const CUSTOM_LAUNCHERS_PATH = GLib.get_user_data_dir() + "/cinnamon/panel-launchers/";
+const OLD_CUSTOM_LAUNCHERS_PATH = GLib.get_home_dir() + '/.cinnamon/panel-launchers/';
 
 let pressLauncher = null;
 
@@ -46,7 +47,7 @@ class PanelAppLauncherMenu extends Applet.AppletPopupMenu {
         this.addMenuItem(item);
 
         if (Main.gpu_offload_supported) {
-            let item = new PopupMenu.PopupIconMenuItem(_("Run with NVIDIA GPU"), "cpu", St.IconType.SYMBOLIC);
+            let item = new PopupMenu.PopupIconMenuItem(_("Run with dedicated GPU"), "cpu", St.IconType.SYMBOLIC);
             this._signals.connect(item, 'activate', Lang.bind(this, this._onLaunchOffloadedActivate));
             this.addMenuItem(item);
         }
@@ -65,7 +66,7 @@ class PanelAppLauncherMenu extends Applet.AppletPopupMenu {
 
         this.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        let subMenu = new PopupMenu.PopupSubMenuMenuItem(_("Preferences"));
+        let subMenu = new PopupMenu.PopupSubMenuMenuItem(_("Applet preferences"));
         this.addMenuItem(subMenu);
 
         item = new PopupMenu.PopupIconMenuItem(_("About..."), "dialog-question", St.IconType.SYMBOLIC);
@@ -281,12 +282,22 @@ class PanelAppLauncher extends DND.LauncherDraggable {
 
     _updateIconSize() {
         let node = this._iconBox.get_theme_node();
-        let maxHeight = this._iconBox.height - node.get_vertical_padding();
-        let maxWidth = this._iconBox.width - node.get_horizontal_padding();
-        let smallestDim = Math.min(maxHeight, maxWidth) / global.ui_scale;
+        let enforcedSize = 0;
 
-        if (smallestDim < this.icon.get_icon_size()) {
-            this.icon.set_icon_size(smallestDim);
+        if (this._iconBox.height > 0) {
+            enforcedSize = this._iconBox.height - node.get_vertical_padding();
+        }
+        else
+        if (this._iconBox.width > 0) {
+            enforcedSize = this._iconBox.width - node.get_horizontal_padding();
+        }
+        else
+        {
+            enforcedSize = -1;
+        }
+
+        if (enforcedSize < this.icon.get_icon_size()) {
+            this.icon.set_icon_size(enforcedSize);
         }
     }
 
@@ -457,7 +468,6 @@ class LaunchersBox {
             this.applet.addForeignLauncher(sourceId, dropIndex, source);
         }
 
-        actor.destroy();
         return true;
     }
 
@@ -579,7 +589,11 @@ class CinnamonPanelLaunchersApplet extends Applet.Applet {
         let app = appSys.lookup_app(path);
         let appinfo = null;
         if (!app) {
-            appinfo = CMenu.DesktopAppInfo.new_from_filename(CUSTOM_LAUNCHERS_PATH+"/"+path);
+            appinfo = CMenu.DesktopAppInfo.new_from_filename(CUSTOM_LAUNCHERS_PATH + path);
+            // Fallback to old launcher folder
+            if (!appinfo) {
+                appinfo = CMenu.DesktopAppInfo.new_from_filename(OLD_CUSTOM_LAUNCHERS_PATH + path);
+            }
             if (!appinfo) {
                 global.logWarning(`Failed to add launcher from path: ${path}`);
                 return null;
@@ -642,8 +656,10 @@ class CinnamonPanelLaunchersApplet extends Applet.Applet {
         }
         if (delete_file) {
             let appid = launcher.getId();
-            let file = Gio.file_new_for_path(CUSTOM_LAUNCHERS_PATH+"/"+appid);
+            let file = Gio.file_new_for_path(CUSTOM_LAUNCHERS_PATH + appid);
             if (file.query_exists(null)) file.delete(null);
+            let old_file = Gio.file_new_for_path(OLD_CUSTOM_LAUNCHERS_PATH + appid);
+            if (old_file.query_exists(null)) old_file.delete(null);
         }
 
         this.sync_settings_proxy_to_settings();
@@ -666,9 +682,11 @@ class CinnamonPanelLaunchersApplet extends Applet.Applet {
 
     showAddLauncherDialog(timestamp, launcher){
         if (launcher) {
-            Util.spawnCommandLine("cinnamon-desktop-editor -mcinnamon-launcher -f" + launcher.getId() + " " + this.settings.file.get_path());
+            Util.spawnCommandLine("cinnamon-desktop-editor -mcinnamon-launcher --icon-size %d -f %s %s"
+                .format(this.icon_size, launcher.getId(), this.settings.file.get_path()));
         } else {
-            Util.spawnCommandLine("cinnamon-desktop-editor -mcinnamon-launcher " + this.settings.file.get_path());
+            Util.spawnCommandLine("cinnamon-desktop-editor -mcinnamon-launcher --icon-size %d %s"
+                .format(this.icon_size, this.settings.file.get_path()))
         }
     }
 

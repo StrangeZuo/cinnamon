@@ -9,12 +9,13 @@ from gi.repository import Gio, Gtk, GObject, GLib
 
 from xapp.SettingsWidgets import SettingsWidget, SettingsLabel
 from xapp.GSettingsWidgets import PXGSettingsBackend
-from ChooserButtonWidgets import DateChooserButton, TweenChooserButton, EffectChooserButton, TimeChooserButton
+from ChooserButtonWidgets import DateChooserButton, TimeChooserButton
 from KeybindingWidgets import ButtonKeybinding
+import util
 
 settings_objects = {}
 
-CAN_BACKEND = ["SoundFileChooser", "TweenChooser", "EffectChooser", "DateChooser", "TimeChooser", "Keybinding"]
+CAN_BACKEND = ["SoundFileChooser", "DateChooser", "TimeChooser", "Keybinding"]
 
 class BinFileMonitor(GObject.GObject):
     __gsignals__ = {
@@ -27,7 +28,7 @@ class BinFileMonitor(GObject.GObject):
 
         env = GLib.getenv("PATH")
 
-        if env == None:
+        if env is None:
             env = "/bin:/usr/bin:."
 
         self.paths = env.split(":")
@@ -57,7 +58,7 @@ file_monitor = None
 def get_file_monitor():
     global file_monitor
 
-    if file_monitor == None:
+    if file_monitor is None:
         file_monitor = BinFileMonitor()
 
     return file_monitor
@@ -126,7 +127,7 @@ class DependencyCheckInstallButton(Gtk.Box):
         self.progress_source_id = GLib.timeout_add(200, self.pulse_progress)
 
     def cancel_pulse(self):
-        if (self.progress_source_id > 0):
+        if self.progress_source_id > 0:
             GLib.source_remove(self.progress_source_id)
             self.progress_source_id = 0
 
@@ -171,7 +172,7 @@ class GSettingsDependencySwitch(SettingsWidget):
             pkg_string += pkg
 
         self.dep_button = DependencyCheckInstallButton(_("Checking dependencies"),
-                                                       _("Please install: %s") % (pkg_string),
+                                                       _("Please install: %s") % pkg_string,
                                                        binfiles,
                                                        self.switch)
         self.content_widget.add(self.dep_button)
@@ -195,7 +196,7 @@ class SidePage(object):
         self.topWindow = None
         self.builder = None
         self.stack = None
-        if self.module != None:
+        if self.module is not None:
             self.module.loaded = False
 
     def add_widget(self, widget):
@@ -207,7 +208,7 @@ class SidePage(object):
         for widget in widgets:
             self.content_box.remove(widget)
 
-        if (self.module is not None):
+        if self.module is not None:
             self.module.on_module_selected()
             self.module.loaded = True
 
@@ -358,29 +359,13 @@ class SoundFileChooser(SettingsWidget):
         self.play_button.connect("clicked", self.on_play_clicked)
         self.content_widget.pack_start(self.play_button, False, False, 0)
 
-        self._proxy = None
-
-        try:
-            Gio.DBusProxy.new_for_bus(Gio.BusType.SESSION, Gio.DBusProxyFlags.NONE, None,
-                                      'org.cinnamon.SettingsDaemon.Sound',
-                                      '/org/cinnamon/SettingsDaemon/Sound',
-                                      'org.cinnamon.SettingsDaemon.Sound',
-                                      None, self._on_proxy_ready, None)
-        except GLib.Error as e:
-            print(e.message)
-            self._proxy = None
-            self.play_button.set_sensitive(False)
-
         self.set_tooltip_text(tooltip)
 
         if size_group:
             self.add_to_size_group(size_group)
 
-    def _on_proxy_ready (self, object, result, data=None):
-        self._proxy = Gio.DBusProxy.new_for_bus_finish(result)
-
     def on_play_clicked(self, widget):
-        self._proxy.PlaySoundFile("(us)", 0, self.get_value())
+        util.play_sound_file(self.get_value())
 
     def on_picker_clicked(self, widget):
         dialog = Gtk.FileChooserDialog(title=self.label.get_text(),
@@ -403,7 +388,7 @@ class SoundFileChooser(SettingsWidget):
         sound_filter.set_name(_("Sound files"))
         dialog.add_filter(sound_filter)
 
-        if (dialog.run() == Gtk.ResponseType.ACCEPT):
+        if dialog.run() == Gtk.ResponseType.ACCEPT:
             name = dialog.get_filename()
             self.set_value(name)
             self.update_button_label(name)
@@ -420,44 +405,6 @@ class SoundFileChooser(SettingsWidget):
 
     def connect_widget_handlers(self, *args):
         pass
-
-class TweenChooser(SettingsWidget):
-    bind_prop = "tween"
-    bind_dir = Gio.SettingsBindFlags.DEFAULT
-
-    def __init__(self, label, size_group=None, dep_key=None, tooltip=""):
-        super(TweenChooser, self).__init__(dep_key=dep_key)
-
-        self.label = SettingsLabel(label)
-
-        self.content_widget = TweenChooserButton()
-
-        self.pack_start(self.label, False, False, 0)
-        self.pack_end(self.content_widget, False, False, 0)
-
-        self.set_tooltip_text(tooltip)
-
-        if size_group:
-            self.add_to_size_group(size_group)
-
-class EffectChooser(SettingsWidget):
-    bind_prop = "effect"
-    bind_dir = Gio.SettingsBindFlags.DEFAULT
-
-    def __init__(self, label, possible=None, size_group=None, dep_key=None, tooltip=""):
-        super(EffectChooser, self).__init__(dep_key=dep_key)
-
-        self.label = SettingsLabel(label)
-
-        self.content_widget = EffectChooserButton(possible)
-
-        self.pack_start(self.label, False, False, 0)
-        self.pack_end(self.content_widget, False, False, 0)
-
-        self.set_tooltip_text(tooltip)
-
-        if size_group:
-            self.add_to_size_group(size_group)
 
 class DateChooser(SettingsWidget):
     bind_dir = None

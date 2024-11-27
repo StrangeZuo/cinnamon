@@ -2,7 +2,7 @@
 
 from gi.repository import Gio
 from xapp.SettingsWidgets import *
-from SettingsWidgets import SoundFileChooser, TweenChooser, EffectChooser, DateChooser, TimeChooser, Keybinding
+from SettingsWidgets import SoundFileChooser, DateChooser, TimeChooser, Keybinding
 from xapp.GSettingsWidgets import CAN_BACKEND as px_can_backend
 from SettingsWidgets import CAN_BACKEND as c_can_backend
 from TreeListWidgets import List
@@ -20,6 +20,7 @@ JSON_SETTINGS_PROPERTIES_MAP = {
     "max"              : "maxi",
     "step"             : "step",
     "units"            : "units",
+    "digits"           : "digits",
     "show-value"       : "show_value",
     "select-dir"       : "dir_select",
     "height"           : "height",
@@ -108,7 +109,7 @@ class JSONSettingsHandler(object):
         for info in self.bindings[key]:
             if obj == info["obj"]:
                 value = info["obj"].get_property(info["prop"])
-                if "map_set" in info and info["map_set"] != None:
+                if "map_set" in info and info["map_set"] is not None:
                     value = info["map_set"](value)
 
         for info in self.bindings[key]:
@@ -125,7 +126,7 @@ class JSONSettingsHandler(object):
             return
 
         with info["obj"].freeze_notify():
-            if "map_get" in info and info["map_get"] != None:
+            if "map_get" in info and info["map_get"] is not None:
                 value = info["map_get"](value)
             if value != info["obj"].get_property(info["prop"]) and value is not None:
                 info["obj"].set_property(info["prop"], value)
@@ -153,14 +154,14 @@ class JSONSettingsHandler(object):
         try:
             settings = json.loads(raw_data, object_pairs_hook=collections.OrderedDict)
         except:
-            raise Exception("Failed to parse settings JSON data for file %s" % (self.filepath))
+            raise Exception("Failed to parse settings JSON data for file %s" % self.filepath)
         return settings
 
     def save_settings(self):
         self.pause_monitor()
         if os.path.exists(self.filepath):
             os.remove(self.filepath)
-        raw_data = json.dumps(self.settings, indent=4)
+        raw_data = json.dumps(self.settings, indent=4, ensure_ascii=False)
         new_file = open(self.filepath, 'w+')
         new_file.write(raw_data)
         new_file.close()
@@ -203,9 +204,9 @@ class JSONSettingsHandler(object):
         raw_data = file.read()
         file.close()
         try:
-            settings = json.loads(raw_data, encoding=None, object_pairs_hook=collections.OrderedDict)
+            settings = json.loads(raw_data, object_pairs_hook=collections.OrderedDict)
         except:
-            raise Exception("Failed to parse settings JSON data for file %s" % (self.filepath))
+            raise Exception("Failed to parse settings JSON data for file %s" % self.filepath)
 
         for key in self.settings:
             if "value" not in self.settings[key]:
@@ -278,7 +279,7 @@ class JSONSettingsBackend(object):
             bind_object = self.bind_object
         else:
             bind_object = self.content_widget
-        if self.bind_dir != None:
+        if self.bind_dir is not None:
             self.settings.bind(self.key, bind_object, self.bind_prop, self.bind_dir,
                                self.map_get if hasattr(self, "map_get") else None,
                                self.map_set if hasattr(self, "map_set") else None)
@@ -308,7 +309,7 @@ class JSONSettingsBackend(object):
         raise NotImplementedError("SettingsWidget class must implement on_setting_changed().")
 
     def connect_widget_handlers(self, *args):
-        if self.bind_dir == None:
+        if self.bind_dir is None:
             raise NotImplementedError("SettingsWidget classes with no .bind_dir must implement connect_widget_handlers().")
 
 def json_settings_factory(subclass):

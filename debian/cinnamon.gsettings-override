@@ -6,3 +6,7 @@ lock-on-suspend=true
 
 [org.cinnamon.desktop.interface]
 gtk-overlay-scrollbars=false
+
+[org.cinnamon.theme]
+name='cinnamon'
+

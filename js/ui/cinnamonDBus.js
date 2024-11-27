@@ -118,13 +118,19 @@ const CinnamonIface =
             </method> \
             <signal name="MonitorsChanged"/> \
             <method name="GetRunState"> \
-               <arg type="i" direction="out" name="state" /> \
+                <arg type="i" direction="out" name="state" /> \
             </method> \
             <method name="RestartCinnamon"> \
                 <arg type="b" direction="in" name="show_osd" /> \
             </method> \
+            <method name="ReloadTheme"/> \
             <signal name="RunStateChanged"/> \
             <signal name="XletsLoadedComplete"/> \
+            <property name="AnimationsEnabled" type="b" access="read" /> \
+            <method name="ShowMonitorLabels"> \
+                <arg type="a{sv}" direction="in" name="params"/> \
+            </method> \
+            <method name="HideMonitorLabels"/> \
         </interface> \
     </node>';
 
@@ -141,7 +147,7 @@ CinnamonDBus.prototype = {
          * layoutManager.Chrome.updateRegions method.  Workspace code in muffin filters
          * out chrome updates that don't actually change the workarea before emitting this
          * signal, which is desirable. */
-        global.screen.connect("workareas-changed", ()=> this.EmitMonitorsChanged());
+        global.display.connect("workareas-changed", ()=> this.EmitMonitorsChanged());
     },
 
     /**
@@ -198,7 +204,7 @@ CinnamonDBus.prototype = {
      */
     ScreenshotArea: function(include_cursor, x, y, width, height, flash, filename) {
         let screenshot = new Cinnamon.Screenshot();
-        screenshot.screenshot_area(include_cursor, x, y, width, 200, filename,
+        screenshot.screenshot_area(include_cursor, x, y, width, height, filename,
             Lang.bind(this, this._onScreenshotComplete, flash));
     },
 
@@ -242,15 +248,17 @@ CinnamonDBus.prototype = {
             params[param] = params[param].deep_unpack();
 
         let monitorIndex = -1;
-        if (params.maybeGet('monitor') >= 0) {
-            monitorIndex = params['monitor'];
+        if (params.maybeGet('monitor_x') >= 0) {
+            let x = params['monitor_x'];
+            let y = params['monitor_y'];
+            monitorIndex = Main.layoutManager.findMonitorIndexAt(++x, ++y);
         }
 
         let icon = null;
         if (params['icon'])
             icon = Gio.Icon.new_for_string(params['icon']);
 
-        Main.osdWindowManager.show(monitorIndex, icon, params['level'], true);
+        Main.osdWindowManager.show(monitorIndex, icon, params['level'], false);
     },
 
     FlashArea: function(x, y, width, height) {
@@ -391,16 +399,16 @@ CinnamonDBus.prototype = {
 
     JumpToNewWorkspace: function() {
         Main._addWorkspace();
-        let num = global.screen.get_n_workspaces();
-        if (global.screen.get_workspace_by_index(num - 1) != null) {
-            global.screen.get_workspace_by_index(num - 1).activate(global.get_current_time());
+        let num = global.workspace_manager.get_n_workspaces();
+        if (global.workspace_manager.get_workspace_by_index(num - 1) != null) {
+            global.workspace_manager.get_workspace_by_index(num - 1).activate(global.get_current_time());
         }
     },
 
     RemoveCurrentWorkspace: function() {
-        let index = global.screen.get_active_workspace_index();
-        if (global.screen.get_workspace_by_index(index) != null) {
-            Main._removeWorkspace(global.screen.get_workspace_by_index(index));
+        let index = global.workspace_manager.get_active_workspace_index();
+        if (global.workspace_manager.get_workspace_by_index(index) != null) {
+            Main._removeWorkspace(global.workspace_manager.get_workspace_by_index(index));
         }
     },
 
@@ -423,7 +431,7 @@ CinnamonDBus.prototype = {
     },
 
     ToggleKeyboard: function() {
-        Main.keyboard.toggle();
+        Main.virtualKeyboard.toggle();
     },
 
     GetMonitors: function() {
@@ -433,7 +441,8 @@ CinnamonDBus.prototype = {
             for (let i = 0; i < Main.layoutManager.monitors.length; i++) {
                 let current = Main.layoutManager.monitors[i];
 
-                monitors.push(current.index);
+                let xinerama_index = global.display.logical_index_to_xinerama_index(current.index);
+                monitors.push(xinerama_index);
             }
         } catch (e) {
             log(e.message);
@@ -449,13 +458,14 @@ CinnamonDBus.prototype = {
     },
 
     GetMonitorWorkRect: function(index) {
-        let n_mons = global.screen.get_n_monitors();
+        let n_mons = global.display.get_n_monitors();
 
         if ((index < 0) || index > (n_mons - 1)) {
             throw new Error("GetMonitorWorkRect: invalid monitor index: " + index + ".  Must be 0 to " + (n_mons - 1));
         }
 
-        let rect = global.screen.get_active_workspace().get_work_area_for_monitor(index);
+        let logical_index = global.display.xinerama_index_to_logical_index(index);
+        let rect = global.workspace_manager.get_active_workspace().get_work_area_for_monitor(logical_index);
 
         return [rect.x, rect.y, rect.width, rect.height];
     },
@@ -468,6 +478,10 @@ CinnamonDBus.prototype = {
         Main.restartCinnamon(showOsd);
     },
 
+    ReloadTheme: function() {
+        Main.themeManager._changeTheme()
+    },
+
     EmitRunStateChanged: function() {
         this._dbusImpl.emit_signal('RunStateChanged', null);
     },
@@ -478,6 +492,27 @@ CinnamonDBus.prototype = {
 
     EmitXletsLoadedComplete: function() {
         this._dbusImpl.emit_signal('XletsLoadedComplete', null);
+    },
+
+    get AnimationsEnabled() {
+        return Main.animations_enabled;
+    },
+
+    notifyAnimationsEnabled() {
+        let variant = new GLib.Variant('b', Main.animations_enabled);
+        this._dbusImpl.emit_property_changed('AnimationsEnabled', variant);
+    },
+
+    ShowMonitorLabelsAsync(monitor_info, invocation) {
+        if (Main.monitorLabeler != null) {
+            Main.monitorLabeler.show(monitor_info[0], invocation.get_sender());
+        }
+    },
+
+    HideMonitorLabelsAsync(tuple, invocation) {
+        if (Main.monitorLabeler != null) {
+            Main.monitorLabeler.hide(invocation.get_sender());
+        }
     },
 
     CinnamonVersion: Config.PACKAGE_VERSION

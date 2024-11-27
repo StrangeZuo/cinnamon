@@ -9,16 +9,13 @@
 #include <string.h>
 
 #include <clutter/clutter.h>
-#include <clutter/x11/clutter-x11.h>
 #include <dbus/dbus-shared.h>
-#include <gdk/gdk.h>
-#include <gdk/gdkx.h>
-#include <gtk/gtk.h>
 #include <glib/gi18n-lib.h>
 #include <girepository.h>
 #include <meta/main.h>
 #include <meta/meta-plugin.h>
 #include <meta/prefs.h>
+#include <meta/util.h>
 
 #include <atk-bridge.h>
 #include "cinnamon-global.h"
@@ -26,7 +23,7 @@
 #include "cinnamon-perf-log.h"
 #include "st.h"
 
-extern GType gnome_cinnamon_plugin_get_type (void);
+extern GType cinnamon_plugin_get_type (void);
 
 #define CINNAMON_DBUS_SERVICE "org.Cinnamon"
 #define MAGNIFIER_DBUS_SERVICE "org.gnome.Magnifier"
@@ -148,8 +145,6 @@ cinnamon_dbus_init (gboolean  replace,
                             "org.gnome.Panel", TRUE,
   /* ...and the org.gnome.Magnifier service. */
                             MAGNIFIER_DBUS_SERVICE, FALSE,
-  /* ...and the org.freedesktop.Notifications service. */
-                            "org.freedesktop.Notifications", FALSE,
                             NULL);
   /* ...and the on-screen keyboard service */
   cinnamon_dbus_acquire_name (bus,
@@ -314,9 +309,8 @@ main (int argc, char **argv)
   GError *error = NULL;
   int ecode;
   gboolean session_running;
-
-  g_setenv ("CLUTTER_DISABLE_XINPUT", "1", TRUE);
-  g_setenv ("CLUTTER_BACKEND", "x11", TRUE);
+  gchar *env_no_gail;
+  gchar *env_no_at_bridge;
 
   bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
   bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
@@ -334,16 +328,28 @@ main (int argc, char **argv)
 
   g_option_context_free (ctx);
 
-  meta_plugin_manager_set_plugin_type (gnome_cinnamon_plugin_get_type ());
+  meta_plugin_manager_set_plugin_type (cinnamon_plugin_get_type ());
 
   /* Prevent meta_init() from causing gtk to load gail and at-bridge */
+  env_no_gail = g_strdup (g_getenv ("NO_GAIL"));
+  env_no_at_bridge = g_strdup (g_getenv ("NO_AT_BRIDGE"));
   g_setenv ("NO_GAIL", "1", TRUE);
   g_setenv ("NO_AT_BRIDGE", "1", TRUE);
   meta_init ();
-  g_unsetenv ("NO_GAIL");
-  g_unsetenv ("NO_AT_BRIDGE");
-  g_unsetenv ("CLUTTER_DISABLE_XINPUT");
-  g_unsetenv ("CLUTTER_BACKEND");
+  if (env_no_gail != NULL)
+    {
+      g_setenv ("NO_GAIL", env_no_gail, TRUE);
+      g_free (env_no_gail);
+    }
+  else
+    g_unsetenv ("NO_GAIL");
+  if (env_no_at_bridge != NULL)
+    {
+      g_setenv ("NO_AT_BRIDGE", env_no_at_bridge, TRUE);
+      g_free (env_no_at_bridge);
+    }
+  else
+    g_unsetenv ("NO_AT_BRIDGE");
 
   /* FIXME: Add gjs API to set this stuff and don't depend on the
    * environment.  These propagate to child processes.
@@ -353,8 +359,10 @@ main (int argc, char **argv)
 
   g_setenv ("CINNAMON_VERSION", VERSION, TRUE);
 
-
-  center_pointer_on_screen();
+  if (!meta_is_wayland_compositor ())
+    {
+      center_pointer_on_screen ();
+    }
 
   cinnamon_dbus_init (meta_get_replace_current_wm (),
                       &session_running);
@@ -362,6 +370,15 @@ main (int argc, char **argv)
   cinnamon_perf_log_init ();
 
   g_irepository_prepend_search_path (CINNAMON_PKGLIBDIR);
+  g_irepository_prepend_search_path (MUFFIN_TYPELIB_DIR);
+
+  /* We need to explicitly add the directories where the private libraries are
+   * installed to the GIR's library path, so that they can be found at runtime
+   * when linking using DT_RUNPATH (instead of DT_RPATH), which is the default
+   * for some linkers (e.g. gold) and in some distros (e.g. Debian).
+   */
+  g_irepository_prepend_library_path (CINNAMON_PKGLIBDIR);
+  g_irepository_prepend_library_path (MUFFIN_TYPELIB_DIR);
 
   /* Disable debug spew from various libraries */
   g_log_set_handler ("Cvc", G_LOG_LEVEL_DEBUG,

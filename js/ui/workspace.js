@@ -66,7 +66,7 @@ WindowClone.prototype = {
 
         this._stackAbove = null;
 
-        let sizeChangedId = this.realWindow.connect('size-changed',
+        let sizeChangedId = this.realWindow.connect('notify::size',
                 this._onRealWindowSizeChanged.bind(this));
         let workspaceChangedId = this.metaWindow.connect('workspace-changed',
                 (w, oldws) => this.emit('workspace-changed', oldws));
@@ -91,7 +91,7 @@ WindowClone.prototype = {
     refreshClone: function(withTransients) {
         this.actor.destroy_all_children();
 
-        let {x, y, width, height} = this.metaWindow.get_outer_rect();
+        let {x, y, width, height} = this.metaWindow.get_frame_rect();
         let clones = WindowUtils.createWindowClone(this.metaWindow, 0, 0, withTransients);
         let leftGap, topGap;
         for (let clone of clones) {
@@ -545,9 +545,9 @@ WorkspaceMonitor.prototype = {
             this._windowRemovedId = this.metaWorkspace.connect('window-removed',
                                                   this._windowRemoved.bind(this));
         }
-        this._windowEnteredMonitorId = global.screen.connect('window-entered-monitor',
+        this._windowEnteredMonitorId = global.display.connect('window-entered-monitor',
                                               this._windowEnteredMonitor.bind(this));
-        this._windowLeftMonitorId = global.screen.connect('window-left-monitor',
+        this._windowLeftMonitorId = global.display.connect('window-left-monitor',
                                               this._windowLeftMonitor.bind(this));
 
         this._animating = false; // Indicate if windows are being repositioned
@@ -680,7 +680,7 @@ WorkspaceMonitor.prototype = {
      */
     _computeWindowLayout: function(metaWindow, slot) {
         let [x, y, width, height] = this._getSlotGeometry(slot);
-        let rect = metaWindow.get_outer_rect();
+        let rect = metaWindow.get_frame_rect();
         let topBorder = 0, bottomBorder = 0, leftBorder = 0, rightBorder = 0;
 
         if (this._windows.length) {
@@ -715,7 +715,7 @@ WorkspaceMonitor.prototype = {
         // Start the animations
         let slots = this._computeAllWindowSlots(clones.length);
 
-        let currentWorkspace = global.screen.get_active_workspace();
+        let currentWorkspace = global.workspace_manager.get_active_workspace();
         let isOnCurrentWorkspace = this.metaWorkspace == null || this.metaWorkspace == currentWorkspace;
 
         if (clones.length > 0 && animate && isOnCurrentWorkspace) {
@@ -765,7 +765,7 @@ WorkspaceMonitor.prototype = {
                                    scale_x: scale,
                                    scale_y: scale,
                                    time: Overview.ANIMATION_TIME,
-                                   transition: 'easeOutQuad',
+                                   transition: 'easeInOutQuad',
                                    onComplete: () => {
                                        this._animating = false
                                        this._showWindowOverlay(clone, true);
@@ -830,7 +830,7 @@ WorkspaceMonitor.prototype = {
     },
 
     _showAllOverlays: function() {
-        let currentWorkspace = global.screen.get_active_workspace();
+        let currentWorkspace = global.workspace_manager.get_active_workspace();
         let fade = this.metaWorkspace == null || this.metaWorkspace === currentWorkspace;
         for (let clone of this._windows) {
             this._showWindowOverlay(clone, fade);
@@ -893,7 +893,7 @@ WorkspaceMonitor.prototype = {
             else
                 this._updateEmptyPlaceholder();
         } else {
-            let animate = Main.wm.settingsState['desktop-effects'];
+            let animate = Main.animations_enabled;
             this.positionWindows(animate ? WindowPositionFlags.ANIMATE : 0);
         }
 
@@ -932,7 +932,7 @@ WorkspaceMonitor.prototype = {
 
         if (this.actor.get_stage()) {
             clone._is_new_window = true;
-            let animate = Main.wm.settingsState['desktop-effects'];
+            let animate = Main.animations_enabled;
             this.positionWindows(animate ? WindowPositionFlags.ANIMATE : 0);
         }
     },
@@ -945,13 +945,13 @@ WorkspaceMonitor.prototype = {
         this._doRemoveWindow(metaWin);
     },
 
-    _windowEnteredMonitor : function(metaScreen, monitorIndex, metaWin) {
+    _windowEnteredMonitor : function(metaDisplay, monitorIndex, metaWin) {
         if (monitorIndex === this.monitorIndex) {
             this._doAddWindow(metaWin);
         }
     },
 
-    _windowLeftMonitor : function(metaScreen, monitorIndex, metaWin) {
+    _windowLeftMonitor : function(metaDisplay, monitorIndex, metaWin) {
         if (monitorIndex === this.monitorIndex) {
             this._doRemoveWindow(metaWin);
         }
@@ -971,7 +971,7 @@ WorkspaceMonitor.prototype = {
 
     // Animate the full-screen to Overview transition.
     zoomToOverview : function() {
-        let animate = Main.wm.settingsState['desktop-effects'];
+        let animate = Main.animations_enabled;
         // Position and scale the windows.
         if (Main.overview.animationInProgress && animate)
             this.positionWindows(WindowPositionFlags.ANIMATE | WindowPositionFlags.INITIAL);
@@ -983,7 +983,7 @@ WorkspaceMonitor.prototype = {
 
     // Animates the return from Overview mode
     zoomFromOverview : function() {
-        let currentWorkspace = global.screen.get_active_workspace();
+        let currentWorkspace = global.workspace_manager.get_active_workspace();
 
         this.leavingOverview = true;
 
@@ -995,7 +995,7 @@ WorkspaceMonitor.prototype = {
         if (this.metaWorkspace != null && this.metaWorkspace != currentWorkspace)
             return;
 
-        let animate = Main.wm.settingsState['desktop-effects'];
+        let animate = Main.animations_enabled;
         if (!animate)
             return;
 
@@ -1009,7 +1009,7 @@ WorkspaceMonitor.prototype = {
                                    y: clone.origY,
                                    scale_x: 1.0,
                                    scale_y: 1.0,
-                                   time: Overview.ANIMATION_TIME,
+                                   time: Overview.ANIMATION_TIME * 0.45,
                                    opacity: 255,
                                    transition: 'easeOutQuad'
                                  });
@@ -1053,8 +1053,8 @@ WorkspaceMonitor.prototype = {
             this.metaWorkspace.disconnect(this._windowAddedId);
             this.metaWorkspace.disconnect(this._windowRemovedId);
         }
-        global.screen.disconnect(this._windowEnteredMonitorId);
-        global.screen.disconnect(this._windowLeftMonitorId);
+        global.display.disconnect(this._windowEnteredMonitorId);
+        global.display.disconnect(this._windowLeftMonitorId);
 
         // Usually, the windows will be destroyed automatically with
         // their parent (this.actor), but we might have a zoomed window

@@ -1,3 +1,269 @@
+cinnamon (6.2.9-1) unstable; urgency=medium
+
+  [ Fabio Fantoni ]
+  * New upstream version 6.2.9
+  * d/patches:
+    - remove one patch applied upstream and refresh others
+    - add an upstream patch that fix build with gtk-doc-tools 1.34.0
+      (Closes: #1073484)
+  * d/control: bump build-deps and deps of some components to 6.2
+  * d/README.source: replace with new link with details about packaging
+
+  [ Jeremy Bícha ]
+  * Add Depends: libjxl-gdk-pixbuf
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Fri, 04 Oct 2024 19:10:17 +0200
+
+cinnamon (6.0.4-4) unstable; urgency=medium
+
+  * d/patches: add upstream patch to remove GNOME Online Accounts from
+    cinnamon-settings and show GNOME Online Accounts GTK, if installed
+  * d/control: remove gir1.2-goa-1.0 from deps and add
+    gnome-online-accounts-gtk to recommends of cinnamon
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sat, 06 Apr 2024 11:28:38 +0200
+
+cinnamon (6.0.4-3) unstable; urgency=medium
+
+  * Release to unstable
+  * d/control:
+    - move cinnamon-l10n from recommends to depends in cinnamon
+    - remove hardcoded libcinnamon-desktop4 and libmuffin0 dep in cinnamon
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sun, 31 Mar 2024 20:32:20 +0200
+
+cinnamon (6.0.4-2) experimental; urgency=medium
+
+  * move config.js to cinnamon-common, was in cinnamon because contained
+    a different parameter in some architectures, now it no longer present
+  * move x-cinnamon-portals.conf to cinnamon where there is the needed
+    dep, this also reduces conflicts with upstream packages
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Tue, 27 Feb 2024 22:28:26 +0100
+
+cinnamon (6.0.4-1) experimental; urgency=medium
+
+  * New upstream version 6.0.4 (Closes: #1061532)
+    Initial wayland support was added, is important know that
+    is still incomplete and experimental
+  * d/patches: remove 2 patches applied upstream and refresh others
+  * Removed d/x-cinnamon-portals.conf, added upstream
+  * d/control:
+    - change cinnamon dep. from gir1.2-soup-2.4 to gir1.2-soup-3.0
+    - remove libxfixes-dev from build-deps as not needed anymore
+    - bump version of needed deps to 6.0
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sun, 11 Feb 2024 15:44:59 +0100
+
+cinnamon (5.8.4-4) unstable; urgency=medium
+
+  * Move gir files from public to private path in /usr/share/cinnamon
+    and from cinnamon to cinnamon-common package (Closes: #1057391)
+  * d/rules:
+    - add override_dh_shlibdeps with muffin private libraries path
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Mon, 01 Jan 2024 15:31:43 +0100
+
+cinnamon (5.8.4-3) unstable; urgency=medium
+
+  * Release to unstable
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Fri, 29 Sep 2023 13:47:46 +0200
+
+cinnamon (5.8.4-2) experimental; urgency=medium
+
+  * d/patches/replace-pil-image-antialias.patch: Add upstream fix for pillow 10
+    (Closes: #1051210)
+  * Add x-cinnamon-portals.conf until the upstream provides it.
+    Thanks to Simon McVittie (Closes: #1050801)
+  * d/control: add xdg-desktop-portal-gtk to cinnamon recommends
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Fri, 15 Sep 2023 20:49:45 +0200
+
+cinnamon (5.8.4-1) experimental; urgency=medium
+
+  * New upstream version 5.8.4
+  * Provide .gir files in cinnamon package as full -dev package is
+    not needed for applets, extensions and desklets
+  * d/control:
+    - add xdg-desktop-portal-xapp to cinnamon recommends
+    - add touchegg to cinnamon recommends
+    - build-depend on libgl-dev instead of transitional libgl1-mesa-dev
+    - bump version of needed deps to 5.8
+    - remove gir1.2-gnomedesktop-3.0 from deps as now unused
+  * Refresh d/patches
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Fri, 14 Jul 2023 13:51:03 +0200
+
+cinnamon (5.6.8-1) unstable; urgency=medium
+
+  * New upstream bugfix version 5.6.8 (Closes: #1032912)
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sun, 19 Mar 2023 22:38:37 +0100
+
+cinnamon (5.6.7-1) unstable; urgency=medium
+
+  * New upstream version 5.6.7
+  * Update standards version to 4.6.2, no changes needed
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Mon, 16 Jan 2023 20:39:02 +0100
+
+cinnamon (5.6.5-2) unstable; urgency=medium
+
+  * Release to unstable
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sun, 25 Dec 2022 19:59:48 +0100
+
+cinnamon (5.6.5-1) experimental; urgency=medium
+
+  * New upstream version 5.6.5
+  * Refresh d/patches
+  * d/control: remove xapp from cinnamon deps and add to recommends
+    libxapp-gtk3-module and xapp-sn-watcher
+  * Bump version of needed deps to 5.6
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Tue, 20 Dec 2022 21:21:44 +0100
+
+cinnamon (5.4.12-2) unstable; urgency=medium
+
+  * d/control:
+    - remove gir1.2-clutter-1.0 and gir1.2-cogl-1.0 as a maintained fork
+      was integrated in muffin (from mutter) and used instead the deprecate
+      and not maintained one
+    - remove gir1.2-gtkclutter-1.0 as now unused
+  * debian/patches: add a patch to fix the upload-system-info path
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Fri, 04 Nov 2022 17:38:34 +0100
+
+cinnamon (5.4.12-1) unstable; urgency=medium
+
+  * New upstream version 5.4.12
+  * d/control:
+    - update muffin deps and build-deps to 5.4.7
+    - remove gir1.2-meta-muffin-0.0 from build-deps
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Fri, 09 Sep 2022 11:32:02 +0200
+
+cinnamon (5.4.11-1) unstable; urgency=medium
+
+  * New upstream version 5.4.11
+  * d/cinnamon.gsettings-override: set theme to cinnamon
+  * d/control: readd gir1.2-soup-2.4 to deps as temp. workaround
+    because many applets and desklet require it
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sun, 21 Aug 2022 20:24:51 +0200
+
+cinnamon (5.4.10-2) unstable; urgency=medium
+
+  * Release to unstable
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sun, 14 Aug 2022 17:09:45 +0200
+
+cinnamon (5.4.10-1) experimental; urgency=medium
+
+  * New upstream version 5.4.10
+  * d/control: remove libsoup2.4-dev from build-deps and
+    gir1.2-soup-2.4 from deps
+  * Refresh d/patches
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sat, 13 Aug 2022 14:47:32 +0200
+
+cinnamon (5.4.9-1) experimental; urgency=medium
+
+  * New upstream version 5.4.9
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Mon, 01 Aug 2022 21:10:00 +0200
+
+cinnamon (5.4.8-1) experimental; urgency=medium
+
+  * New upstream version 5.4.8
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Mon, 25 Jul 2022 22:52:38 +0200
+
+cinnamon (5.4.7-1) experimental; urgency=medium
+
+  * New upstream version 5.4.7
+  * d/rules: remove the move of thumbnail not present
+  * Specify that rules don't require root
+  * Bumped Standards-Version to 4.6.1
+  * d/control: update cinnamon-settings-daemon dep to 5.4.3
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sun, 24 Jul 2022 21:16:29 +0200
+
+cinnamon (5.4.5-1) experimental; urgency=medium
+
+  * New upstream version 5.4.5
+  * Disable d/patches/always-add-default-theme.patch
+  * d/control: update muffin deps and build-deps to 5.4.2
+  * Update cinnamon lintian overrides
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Wed, 20 Jul 2022 23:24:31 +0200
+
+cinnamon (5.4.2-1) experimental; urgency=medium
+
+  * New upstream version 5.4.2
+  * Simplify and update d/watch
+  * d/control:
+    - add inxi to cinnamon recommends
+    - add devhelp to cinnanon-doc recommends
+    - add libxapp-dev to build-deps
+    - add gir1.2-gsound-1.0 to cinnamon deps
+    - update meson min. version
+    - remove libclutter-1.0-dev from build-deps
+  * Bump version of deps and breaks of reverse deps to 5.4
+  * Update d/copyright
+  * d/patches: remove 4 patches applied upstream and refresh others
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sun, 10 Jul 2022 23:01:00 +0200
+
+cinnamon (5.2.7-4) unstable; urgency=medium
+
+  * d/control: add psmisc to cinnamon depends
+    Thanks to Martin Simmons for reporting (Closes: #1006887)
+  * d/control: add pkexec to cinnamon depends
+  * d/patches: add fixes from upstream:
+    - calendar events: Check if evolution-data-server is running before
+      enabling events
+    - calendar-server: Add return after calling app.quit()
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Mon, 11 Apr 2022 20:24:21 +0200
+
+cinnamon (5.2.7-3) unstable; urgency=medium
+
+  [ Fabio Fantoni ]
+  * update d/copyright
+
+ -- Christoph Martin <martin@uni-mainz.de>  Tue, 12 Apr 2022 12:08:31 +0200
+
+cinnamon (5.2.7-2) unstable; urgency=medium
+
+  * add myself to uploaders
+  * prepare unstable upload
+
+ -- Christoph Martin <martin@uni-mainz.de>  Wed, 26 Jan 2022 09:42:51 +0100
+
+cinnamon (5.2.7-1) experimental; urgency=medium
+
+  * New upstream version 5.2.7
+  * Add python3-requests to cinnamon depends
+  * d/patches:
+    - add a revert of workaround for meson 0.60.2 regression
+    that cause FTBFS after his fix
+    - gtkdoc: remove dependencies on custom target files
+  * Add Joshua to uploaders
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Fri, 31 Dec 2021 16:13:31 +0100
+
+cinnamon (5.2.6-1) experimental; urgency=medium
+
+  * New upstream version 5.2.6 (Closes: #1001536, #1002412)
+  * update xapp deps for package split of 2.2.5-1
+  * use dh-sequence-gir and dh-sequence-python3
+  * d/patches: remove applied upstream and refresh others
+  * d/control: add deps for calendar server
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sat, 04 Dec 2021 12:46:20 +0100
+
 cinnamon (5.0.6-1) unstable; urgency=medium
 
   * New upstream version 5.0.6

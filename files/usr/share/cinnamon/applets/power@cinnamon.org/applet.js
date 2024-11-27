@@ -26,7 +26,8 @@ const UPDeviceType = {
     PHONE: 8,
     MEDIA_PLAYER: 9,
     TABLET: 10,
-    COMPUTER: 11
+    COMPUTER: 11,
+    GAMING_INPUT: 12
 };
 
 const UPDeviceState = {
@@ -110,6 +111,8 @@ function deviceToIcon(type, icon) {
             return ("input-tablet");
         case UPDeviceType.COMPUTER:
             return ("computer");
+        case UPDeviceType.GAMING_INPUT:
+            return ("input-gaming");
         default:
             if (icon) {
                 return icon;
@@ -295,6 +298,8 @@ class BrightnessSlider extends PopupMenu.PopupSliderMenuItem {
             this.tooltipText += ": " + value + "%";
 
         this.tooltip.set_text(this.tooltipText);
+        if (this._dragging)
+            this.tooltip.show();
     }
 
     /* Overriding PopupSliderMenuItem so we can modify the scroll step */
@@ -302,14 +307,13 @@ class BrightnessSlider extends PopupMenu.PopupSliderMenuItem {
         let direction = event.get_scroll_direction();
 
         if (direction == Clutter.ScrollDirection.DOWN) {
-            this._value = Math.max(0, this._value - this._step);
+            this._proxy.StepDownRemote(function() {});
         }
         else if (direction == Clutter.ScrollDirection.UP) {
-            this._value = Math.min(1, this._value + this._step);
+            this._proxy.StepUpRemote(function() {});
         }
 
         this._slider.queue_repaint();
-        this.emit('value-changed', this._value);
     }
 }
 
@@ -323,8 +327,8 @@ class CinnamonPowerApplet extends Applet.TextIconApplet {
 
         this.settings = new Settings.AppletSettings(this, metadata.uuid, instanceId);
 
-        Main.systrayManager.registerRole("power", metadata.uuid);
-        Main.systrayManager.registerRole("battery", metadata.uuid);
+        Main.systrayManager.registerTrayIconReplacement("power", metadata.uuid);
+        Main.systrayManager.registerTrayIconReplacement("battery", metadata.uuid);
 
         this.menuManager = new PopupMenu.PopupMenuManager(this);
         this.menu = new Applet.AppletPopupMenu(this, orientation);
@@ -339,7 +343,7 @@ class CinnamonPowerApplet extends Applet.TextIconApplet {
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        this.brightness = new BrightnessSlider(this, _("Brightness"), "display-brightness", BrightnessBusName, 0.01);
+        this.brightness = new BrightnessSlider(this, _("Brightness"), "display-brightness", BrightnessBusName, 0);
         this.keyboard = new BrightnessSlider(this, _("Keyboard backlight"), "keyboard-brightness", KeyboardBusName, 0);
         this.menu.addMenuItem(this.brightness);
         this.menu.addMenuItem(this.keyboard);
@@ -354,16 +358,26 @@ class CinnamonPowerApplet extends Applet.TextIconApplet {
 
         global.settings.connect('changed::' + PANEL_EDIT_MODE_KEY, Lang.bind(this, this._onPanelEditModeChanged));
 
-        Interfaces.getDBusProxyAsync("org.cinnamon.SettingsDaemon.Power", Lang.bind(this, function(proxy, error) {
-            this._proxy = proxy;
+        this.csd_power_watch_id = Gio.bus_watch_name(Gio.BusType.SESSION, "org.cinnamon.SettingsDaemon.Power", 0, (c, name) => {
+            Interfaces.getDBusProxyAsync("org.cinnamon.SettingsDaemon.Power", Lang.bind(this, function(proxy, error) {
+                Gio.bus_unwatch_name(this.csd_power_watch_id);
+                this.csd_power_watch_id = 0;
 
-            this._proxy.connect("g-properties-changed", Lang.bind(this, this._devicesChanged));
-            global.settings.connect('changed::device-aliases', Lang.bind(this, this._on_device_aliases_changed));
-            this.settings.bind("labelinfo", "labelinfo", this._devicesChanged);
-            this.settings.bind("showmulti", "showmulti", this._devicesChanged);
+                if (error) {
+                    global.logError("Could not connect to csd-power", error.message);
+                    return;
+                }
 
-            this._devicesChanged();
-        }));
+                this._proxy = proxy;
+
+                this._proxy.connect("g-properties-changed", Lang.bind(this, this._devicesChanged));
+                global.settings.connect('changed::device-aliases', Lang.bind(this, this._on_device_aliases_changed));
+                this.settings.bind("labelinfo", "labelinfo", this._devicesChanged);
+                this.settings.bind("showmulti", "showmulti", this._devicesChanged);
+
+                this._devicesChanged();
+            }));
+        }, null);
 
         this.set_show_label_in_vertical_panels(false);
     }
@@ -409,23 +423,26 @@ class CinnamonPowerApplet extends Applet.TextIconApplet {
     }
 
     _getDeviceStatus(device) {
-        let status = ""
+        let status = "";
         let [device_id, vendor, model, device_type, icon, percentage, state, battery_level, seconds] = device;
 
         let time = Math.round(seconds / 60);
         let minutes = time % 60;
         let hours = Math.floor(time / 60);
 
-        if (state == UPDeviceState.CHARGING) {
+        if (state == UPDeviceState.UNKNOWN) {
+            status = "";
+        }
+        else if (state == UPDeviceState.CHARGING) {
             if (time == 0) {
                 status = _("Charging");
             }
-            else if (time > 60) {
+            else if (time >= 60) {
                 if (minutes == 0) {
                     status = ngettext("Charging - %d hour until fully charged", "Charging - %d hours until fully charged", hours).format(hours);
                 }
                 else {
-                    /* TRANSLATORS: this is a time string, as in "%d hours %d minutes remaining" */
+                    /* Translators: this is a time string, as in "%d hours %d minutes remaining" */
                     let template = _("Charging - %d %s %d %s until fully charged");
                     status = template.format (hours, ngettext("hour", "hours", hours), minutes, ngettext("minute", "minutes", minutes));
                 }
@@ -437,16 +454,16 @@ class CinnamonPowerApplet extends Applet.TextIconApplet {
         else if (state == UPDeviceState.FULLY_CHARGED) {
             status = _("Fully charged");
         }
-        else {
+        else if (state == UPDeviceState.DISCHARGING) {
             if (time == 0) {
                 status = _("Using battery power");
             }
-            else if (time > 60) {
+            else if (time >= 60) {
                 if (minutes == 0) {
                     status = ngettext("Using battery power - %d hour remaining", "Using battery power - %d hours remaining", hours).format(hours);
                 }
                 else {
-                    /* TRANSLATORS: this is a time string, as in "%d hours %d minutes remaining" */
+                    /* Translators: this is a time string, as in "%d hours %d minutes remaining" */
                     let template = _("Using battery power - %d %s %d %s remaining");
                     status = template.format (hours, ngettext("hour", "hours", hours), minutes, ngettext("minute", "minutes", minutes));
                 }
@@ -454,6 +471,12 @@ class CinnamonPowerApplet extends Applet.TextIconApplet {
             else {
                 status = ngettext("Using battery power - %d minute remaining", "Using battery power - %d minutes remaining", minutes).format(minutes);
             }
+        }
+        else if (state == UPDeviceState.EMPTY) {
+            status = _("Fully discharged");
+        }
+        else {
+            status = _("Not charging");
         }
 
         return status;
@@ -537,6 +560,7 @@ class CinnamonPowerApplet extends Applet.TextIconApplet {
                 this._deviceItems = [];
                 let devices_stats = [];
                 let pct_support_count = 0;
+                let _devices = []; let _deviceItems = [];
 
                 if (!error) {
                     let devices = result[0];
@@ -559,7 +583,7 @@ class CinnamonPowerApplet extends Applet.TextIconApplet {
 
                         let stats = "%s (%d%%)".format(deviceTypeToString(device_type), percentage);
                         devices_stats.push(stats);
-                        this._devices.push(devices[i]);
+                        _devices.push(devices[i]);
 
                         if (this._primaryDeviceId == null || this._primaryDeviceId == device_id) {
                             // Info for the primary battery (either the primary device, or any battery device if there is no primary device)
@@ -571,13 +595,17 @@ class CinnamonPowerApplet extends Applet.TextIconApplet {
                         let status = this._getDeviceStatus(devices[i]);
                         let item = new DeviceItem (devices[i], status, this.aliases);
                         this.menu.addMenuItem(item, position);
-                        this._deviceItems.push(item);
+                        _deviceItems.push(item);
                         position++;
                     }
                 }
                 else {
-                    global.log(error);
+                    global.logError(error);
                 }
+
+
+                this._devices = _devices;
+                this._deviceItems = _deviceItems;
 
                 // The menu is built. Below, we update the information present in the panel (icon, tooltip and label)
                 this.set_applet_enabled(true);
@@ -595,7 +623,7 @@ class CinnamonPowerApplet extends Applet.TextIconApplet {
                     if (this._devices.length === 1 && pct_support_count === 1) {
                         this.showDeviceInPanel(this._devices[0]);
                     }
-                    else if (this._devices.length > 1) {
+                    else if (this._devices.length > 0) {
                         // Show a summary
                         let labelText = "";
                         if (this.labelinfo !== "nothing") {
@@ -682,7 +710,7 @@ class CinnamonPowerApplet extends Applet.TextIconApplet {
     }
 
     on_applet_removed_from_panel() {
-        Main.systrayManager.unregisterId(this.metadata.uuid);
+        Main.systrayManager.unregisterTrayIconReplacement(this.metadata.uuid);
     }
 }
 

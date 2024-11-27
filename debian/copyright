@@ -13,6 +13,7 @@ Copyright: 1989-1991, Free Software Foundation, Inc
            1999-2001, Eazel, Inc
            2001, George Lebl
            2000, Helix Code, Inc
+           2008, Iain Holmes
            2006-2008, OpenedHand Ltd
            2007-2011, Red Hat, Inc
            2002, Sun Microsystems Inc
@@ -20,6 +21,55 @@ Copyright: 1989-1991, Free Software Foundation, Inc
 License: GPL-2+
 
 Files: src/cinnamon-window-tracker.c
+       src/st/croco/cr-additional-sel.c
+       src/st/croco/cr-additional-sel.h
+       src/st/croco/cr-attr-sel.c
+       src/st/croco/cr-attr-sel.h
+       src/st/croco/cr-cascade.c
+       src/st/croco/cr-cascade.h
+       src/st/croco/cr-declaration.c
+       src/st/croco/cr-declaration.h
+       src/st/croco/cr-doc-handler.c
+       src/st/croco/cr-doc-handler.h
+       src/st/croco/cr-enc-handler.c
+       src/st/croco/cr-enc-handler.h
+       src/st/croco/cr-fonts.c
+       src/st/croco/cr-fonts.h
+       src/st/croco/cr-input.c
+       src/st/croco/cr-input.h
+       src/st/croco/cr-num.c
+       src/st/croco/cr-num.h
+       src/st/croco/cr-om-parser.c
+       src/st/croco/cr-om-parser.h
+       src/st/croco/cr-parser.c
+       src/st/croco/cr-parser.h
+       src/st/croco/cr-parsing-location.c
+       src/st/croco/cr-parsing-location.h
+       src/st/croco/cr-prop-list.c
+       src/st/croco/cr-prop-list.h
+       src/st/croco/cr-pseudo.c
+       src/st/croco/cr-pseudo.h
+       src/st/croco/cr-rgb.c
+       src/st/croco/cr-rgb.h
+       src/st/croco/cr-selector.c
+       src/st/croco/cr-selector.h
+       src/st/croco/cr-simple-sel.c
+       src/st/croco/cr-simple-sel.h
+       src/st/croco/cr-statement.c
+       src/st/croco/cr-statement.h
+       src/st/croco/cr-string.c
+       src/st/croco/cr-string.h
+       src/st/croco/cr-stylesheet.c
+       src/st/croco/cr-stylesheet.h
+       src/st/croco/cr-term.c
+       src/st/croco/cr-term.h
+       src/st/croco/cr-tknzr.c
+       src/st/croco/cr-tknzr.h
+       src/st/croco/cr-token.c
+       src/st/croco/cr-token.h
+       src/st/croco/cr-utils.c
+       src/st/croco/cr-utils.h
+       src/st/croco/libcroco.h
        src/st/st-adjustment.c
        src/st/st-adjustment.h
        src/st/st-bin.c
@@ -37,8 +87,6 @@ Files: src/cinnamon-window-tracker.c
        src/st/st-group.h
        src/st/st-icon.c
        src/st/st-icon.h
-       src/st/st-im-text.c
-       src/st/st-im-text.h
        src/st/st-label.c
        src/st/st-label.h
        src/st/st-private.c
@@ -46,11 +94,14 @@ Files: src/cinnamon-window-tracker.c
        src/st/st-scroll-bar.c
        src/st/st-scroll-bar.h
        src/st/st-scroll-view-fade.c
+       src/st/st-scroll-view-fade.glsl
        src/st/st-scroll-view-fade.h
        src/st/st-scroll-view.c
        src/st/st-scroll-view.h
        src/st/st-scrollable.c
        src/st/st-scrollable.h
+       src/st/st-settings.c
+       src/st/st-settings.h
        src/st/st-table-child.c
        src/st/st-table-child.h
        src/st/st-table-private.h
@@ -59,19 +110,22 @@ Files: src/cinnamon-window-tracker.c
        src/st/st-theme-node-drawing.c
        src/st/st-theme.c
        src/st/st-types.h
+       src/st/st-viewport.h
        src/st/st-widget-accessible.h
        src/st/st-widget.c
        src/st/st-widget.h
 Copyright: 2009, Abderrahim Kitouni
            2010-2011, Adel Gadllah
-           2003-2004, Dodji Seketeli
+           2002-2004, Dodji Seketeli
+           2002-2004, Dodji Seketeli <dodji@seketeli.org>
+           2019, Endless, Inc
            2009-2010, Florian Müllner
            2010, Giovanni Campagna
            2010, Igalia, S.L
            2008-2010, Intel Corporation
            2010, Maxim Ermilov
            2007-2008, OpenedHand
-           2006-2010, Red Hat, Inc
+           2006-2019, Red Hat, Inc
            2008, litl, LLC
 License: LGPL-2.1
 
@@ -82,6 +136,8 @@ Files: src/st/st-border-image.c
        src/st/st-focus-manager.c
        src/st/st-focus-manager.h
        src/st/st-icon-colors.c
+       src/st/st-image-content.c
+       src/st/st-image-content.h
        src/st/st-polygon.c
        src/st/st-polygon.h
        src/st/st-shadow.c
@@ -99,6 +155,7 @@ Files: src/st/st-border-image.c
        src/st/st-theme.h
        src/st/test-theme.c
 Copyright: 2010, Adel Gadllah
+           2019, Canonical, Ltd
            2009-2010, Florian Müllner
            2010, Giovanni Campagna
            2010, Maxim Ermilov
@@ -109,17 +166,17 @@ License: LGPL-2.1+
 Files: files/usr/share/cinnamon/cinnamon-menu-editor/cme/MainWindow.py
        files/usr/share/cinnamon/cinnamon-menu-editor/cme/MenuEditor.py
        files/usr/share/cinnamon/cinnamon-menu-editor/cme/util.py
+       src/data-to-c.pl
        src/st/st-box-layout.c
-       src/tray/na-tray-child.c
-       src/tray/na-tray-child.h
-       src/tray/na-tray-manager.c
-       src/tray/na-tray-manager.h
+       src/st/st-viewport.c
+       src/tray/*
 Copyright: 2009, Abderrahim Kitouni
            2002, Anders Carlsson <andersca@gnu.org>
+           2019, Endless, Inc
            2010, Florian Muellner
            2009, Intel Corporation
            2006, OpenedHand
-           2008-2010, Red Hat, Inc
+           2008-2011, Red Hat, Inc
            2006, Travis Watkins
            2006, Travis Watkins, Heinrich Wendel
            2003-2006, Vincent Untz
@@ -131,6 +188,7 @@ Copyright: 2007-2010, www.stani.be
 License: GPL-3+
 
 Files: files/usr/share/cinnamon/cinnamon-settings/bin/proxygsettings.py
+       python3/cinnamon/proxygsettings.py
 Copyright: 2011-2012, Canonical Ltd
            2014, Erik Devriendt
 License: GPL-3_SSLException

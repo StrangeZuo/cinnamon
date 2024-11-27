@@ -122,8 +122,12 @@ function getObjKeysInfo(obj) {
 
     return Array.from(keys).map((k) => {
         if (!KEY_BLACKLIST.includes(k)) {
-            let [t, v] = getObjInfo(obj[k]);
-            return { name: k.toString(), type: t, value: v, shortValue: "" };
+            try {
+                let [t, v] = getObjInfo(obj[k]);
+                return { name: k.toString(), type: t, value: v, shortValue: "" };
+            } catch (e) {
+                return { name: k.toString(), type: '[inacessible]', value: '[inacessible]', shortValue: "" }; 
+            }
         } else {
             return { name: k.toString(), type: '[inacessible]', value: '[inacessible]', shortValue: "" }; 
         }
@@ -212,7 +216,7 @@ class WindowList {
             this.latestWindowList.push(lgInfo);
         }
 
-        // Make sure the list changed before notifying listeneres
+        // Make sure the list changed before notifying listeners
         let changed = oldWindowList.length != this.latestWindowList.length;
         if (!changed) {
             for (let i = 0; i < oldWindowList.length; i++) {
@@ -229,22 +233,33 @@ class WindowList {
 
 function addBorderPaintHook(actor) {
     let signalId = actor.connect_after('paint',
-        function () {
-            let color = new Cogl.Color();
-            color.init_from_4ub(0xff, 0, 0, 0xc4);
-            Cogl.set_source_color(color);
+        function (actor, paint_context) {
+            let framebuffer = paint_context.get_framebuffer();
+            let coglContext = framebuffer.get_context();
 
-            let geom = actor.get_allocation_geometry();
+            if (!this._pipeline) {
+                let color = new Cogl.Color();
+                color.init_from_4ub(0xff, 0, 0, 0xc4);
+
+                this._pipeline = new Cogl.Pipeline(coglContext);
+                this._pipeline.set_color(color);
+            }
+
+            let alloc = actor.get_allocation_box();
             let width = 2;
 
             // clockwise order
-            Cogl.rectangle(0, 0, geom.width, width);
-            Cogl.rectangle(geom.width - width, width,
-                           geom.width, geom.height);
-            Cogl.rectangle(0, geom.height,
-                           geom.width - width, geom.height - width);
-            Cogl.rectangle(0, geom.height - width,
-                           width, width);
+            framebuffer.draw_rectangle(this._pipeline,
+                0, 0, alloc.get_width(), width);
+            framebuffer.draw_rectangle(this._pipeline,
+                alloc.get_width() - width, width,
+                alloc.get_width(), alloc.get_height());
+            framebuffer.draw_rectangle(this._pipeline,
+                0, alloc.get_height(),
+                alloc.get_width() - width, alloc.get_height() - width);
+            framebuffer.draw_rectangle(this._pipeline,
+                0, alloc.get_height() - width,
+                width, width);
         });
 
     actor.queue_redraw();
@@ -428,7 +443,7 @@ class Inspector {
 Signals.addSignalMethods(Inspector.prototype);
 
 
-const dbusIFace =
+const melangeIFace =
     '<node> \
         <interface name="org.Cinnamon.Melange"> \
             <method name="show" /> \
@@ -436,7 +451,6 @@ const dbusIFace =
             <method name="getVisible"> \
                 <arg type="b" direction="out" name="visible"/> \
             </method> \
-            <property name="_open" type="b" access="read" /> \
         </interface> \
      </node>';
 
@@ -491,8 +505,6 @@ const lgIFace =
         </interface> \
     </node>';
 
-const proxy = Gio.DBusProxy.makeProxyWrapper(dbusIFace);
-
 var Melange = class {
     constructor() {
         this.proxy = null;
@@ -512,6 +524,7 @@ var Melange = class {
         this._dbusImpl.export(Gio.DBus.session, '/org/Cinnamon/LookingGlass');
 
         Gio.DBus.session.own_name('org.Cinnamon.LookingGlass', Gio.BusNameOwnerFlags.REPLACE, null, null);
+        this.ensureProxy();
     }
 
     _update_keybinding() {
@@ -520,18 +533,35 @@ var Melange = class {
     }
 
     ensureProxy() {
-        if (!this.proxy)
-            this.proxy = new proxy(Gio.DBus.session, 'org.Cinnamon.Melange', '/org/Cinnamon/Melange');
+        let nodeInfo = Gio.DBusNodeInfo.new_for_xml(melangeIFace);
+
+        Gio.DBusProxy.new(
+              Gio.DBus.session,
+              Gio.DBusProxyFlags.DO_NOT_AUTO_START_AT_CONSTRUCTION,
+              nodeInfo.lookup_interface("org.Cinnamon.Melange"),
+              "org.Cinnamon.Melange",
+              "/org/Cinnamon/Melange",
+              "org.Cinnamon.Melange",
+              null,
+              this._onProxyReady.bind(this)
+        );
+    }
+
+    _onProxyReady(object, res) {
+        try {
+            this.proxy = Gio.DBusProxy.new_finish(res);
+        } catch (e) {
+            log('error creating org.Cinnamon.Melange proxy: %s'.format(e.message));
+            return;
+        }
     }
 
     open() {
-        this.ensureProxy()
         this.proxy.showRemote();
         this.updateVisible();
     }
 
     close() {
-        this.ensureProxy()
         this.proxy.hideRemote();
         this.updateVisible();
     }

@@ -7,6 +7,7 @@ const GLib = imports.gi.GLib;
 const Gtk = imports.gi.Gtk;
 const Signals = imports.signals;
 const St = imports.gi.St;
+const Meta = imports.gi.Meta;
 
 const AppletManager = imports.ui.appletManager;
 const Config = imports.misc.config;
@@ -21,7 +22,8 @@ var State = {
     INITIALIZING: 0,
     LOADED: 1,
     ERROR: 2,
-    OUT_OF_DATE: 3
+    OUT_OF_DATE: 3,
+    X11_ONLY: 4
 };
 
 // Xlets using imports.gi.NMClient. This should be removed in Cinnamon 4.2+,
@@ -32,9 +34,13 @@ var knownCinnamon4Conflicts = [
     'vnstat@linuxmint.com',
     'netusagemonitor@pdcurtis',
     // Desklets
-    'netusage@30yavash.com',
-    'simple-system-monitor@ariel'
+    'netusage@30yavash.com'
 ];
+
+var x11Only = [
+        "keyboard@cinnamon.org",
+        "systray@cinnamon.org"
+    ]
 
 // macro for creating extension types
 function _createExtensionType(name, folder, manager, overrides){
@@ -101,6 +107,7 @@ var Type = {
         roles: {
             notifications: null,
             windowlist: null,
+            windowattentionhandler: null,
             panellauncher: null,
             tray: null
         }
@@ -108,7 +115,8 @@ var Type = {
     DESKLET: _createExtensionType("Desklet", "desklets", DeskletManager, {
         roles: {
             notifications: null,
-            windowlist: null
+            windowlist: null,
+            windowattentionhandler: null
         }
     }),
     SEARCH_PROVIDER: _createExtensionType("Search provider", "search_providers", SearchProviderManager, {
@@ -132,27 +140,31 @@ function formatError(uuid, message) {
 function logError(message, uuid, error, state) {
     let errorMessage = formatError(uuid, message);
     if (!error) {
-        error = new Error(errorMessage);
+        error = new Error(errorMessage, { cause: state });
     } else {
         error.message = `\n${formatError(uuid, error.message)}`;
         error.message += `\n${errorMessage}`;
     }
 
-    error.stack = error.stack.split('\n')
-        .filter(function(line) {
-            return !line.match(/<Promise>|wrapPromise/);
-        })
-        .join('\n');
+    if (state !== State.X11_ONLY) {
+        error.stack = error.stack.split('\n')
+            .filter(function(line) {
+                return !line.match(/<Promise>|wrapPromise/);
+            })
+            .join('\n');
 
-    global.logError(error);
-
+        global.logError(error);
+    } else {
+        global.logWarning(error.message);
+    }
+    
     // An error during initialization leads to unloading the extension again.
     let extension = getExtension(uuid);
     if (extension) {
         extension.meta.state = state || State.ERROR;
         extension.meta.error += message;
         if (extension.meta.state === State.INITIALIZING) {
-            extension.unlockRole();
+            extension.unlockRoles();
             extension.unloadStylesheet();
             extension.unloadIconDirectory();
             forgetExtension(uuid, Type[extension.upperType]);
@@ -284,7 +296,10 @@ Extension.prototype = {
              //   just don't show up if their program isn't installed, but we don't
              //   remove them or anything)
             Main.cinnamonDBusService.EmitXletAddedComplete(false, uuid);
-            Main.xlet_startup_error = true;
+
+            if (e.cause == null || e.cause !== State.X11_ONLY) {
+                Main.xlet_startup_error = true;
+            }
             forgetExtension(uuid, type);
             if (e._alreadyLogged) {
                 return;
@@ -302,9 +317,12 @@ Extension.prototype = {
         global.log(`Loaded ${this.lowerType} ${this.uuid} in ${endTime - startTime} ms`);
         startTime = new Date().getTime();
     },
-
     validateMetaData: function() {
         // Some properties are required to run
+        if (x11Only.includes(this.meta.uuid) && Meta.is_wayland_compositor()) {
+            throw logError("Extension not compatible with Wayland", this.uuid, null, State.X11_ONLY);
+        }
+
         this.checkProperties(Type[this.upperType].requiredProperties, true);
 
         // Others are nice to have
@@ -320,10 +338,13 @@ Extension.prototype = {
         }
 
         // If a role is set, make sure it's a valid one
-        let role = this.meta['role'];
-        if (role) {
-            if (!(role in Type[this.upperType].roles)) {
-                throw logError(`Unknown role definition: ${role} in metadata.json`, this.uuid);
+        let meta_role_list_str = this.meta['role'];
+        if (meta_role_list_str) {
+            let meta_roles = meta_role_list_str.replace(" ", "").split(",");
+            for (let role of meta_roles) {
+                if (!(role in Type[this.upperType].roles)) {
+                    throw logError(`Unknown role definition: ${role} in metadata.json`, this.uuid);
+                }
             }
         }
     },
@@ -393,28 +414,50 @@ Extension.prototype = {
     },
 
     lockRole: function(roleProvider) {
-        if (this.meta
-            && this.meta.role
-            && Type[this.upperType].roles[this.meta.role] !== this.uuid) {
-            if (Type[this.upperType].roles[this.meta.role] != null) {
+        if (this.meta && this.meta.role) {
+            let meta_role_list_str = this.meta.role;
+            let meta_roles = meta_role_list_str.replace(" ", "").split(",");
+
+            let avail_roles = [];
+
+            for (let role of meta_roles) {
+                if (Type[this.upperType].roles[role] !== this.uuid) {
+                    if (Type[this.upperType].roles[role] != null) {
+                        continue;
+                    }
+
+                    avail_roles.push(role);
+                }
+            }
+
+            if (avail_roles.length == 0) {
                 return false;
             }
 
             if (roleProvider != null) {
-                Type[this.upperType].roles[this.meta.role] = this.uuid;
-                this.roleProvider = roleProvider;
-                global.log(`Role locked: ${this.meta.role}`);
+                for (let role of avail_roles) {
+                    Type[this.upperType].roles[role] = this.uuid;
+                    this.roleProvider = roleProvider;
+                    global.log(`Role locked: ${role}`);
+                }
             }
         }
 
         return true;
     },
 
-    unlockRole: function() {
-        if (this.meta.role && Type[this.upperType].roles[this.meta.role] === this.uuid) {
-            Type[this.upperType].roles[this.meta.role] = null;
-            this.roleProvider = null;
-            global.log(`Role unlocked: ${this.meta.role}`);
+    unlockRoles: function() {
+        if (this.meta.role) {
+            let meta_role_list_str = this.meta.role;
+            let meta_roles = meta_role_list_str.replace(" ", "").split(",");
+
+            for (let role of meta_roles) {
+                if (Type[this.upperType].roles[role] === this.uuid) {
+                    Type[this.upperType].roles[role] = null;
+                    this.roleProvider = null;
+                    global.log(`Role unlocked: ${role}`);
+                }
+            }
         }
     }
 }
@@ -486,6 +529,8 @@ function getMetaStateString(state) {
             return _("Error");
         case State.OUT_OF_DATE:
             return _("Out of date");
+        case State.X11_ONLY:
+            return _("Not compatible with Wayland");
     }
     return 'Unknown'; // Not translated, shouldn't appear
 }
@@ -511,7 +556,7 @@ function unloadExtension(uuid, type, deleteConfig = true, reload = false) {
     let extensionIndex = queryCollection(extensions, {uuid}, true);
     if (extensionIndex > -1) {
         let extension = extensions[extensionIndex];
-        extension.unlockRole();
+        extension.unlockRoles();
 
         // Try to disable it -- if it's ERROR'd, we can't guarantee that,
         // but it will be removed on next reboot, and hopefully nothing
@@ -600,6 +645,22 @@ function getMetadata(uuid, type) {
     });
 }
 
+function maybeAddWindowAttentionHandlerRole(meta) {
+    const keywords = ['window-list', 'windowlist', 'taskbar'];
+
+    keywords.some(element => {
+        if (meta.uuid.includes(element)) {
+            if (!meta.role) {
+                meta.role = "windowattentionhandler";
+            } else {
+                if (!meta.role.includes("windowattentionhandler")) {
+                    meta.role += ",windowattentionhandler";
+                }
+            }
+        }
+    });
+}
+
 function loadMetaData({state, path, uuid, userDir, folder, force}) {
     return new Promise((resolve, reject) => {
         let dir = findExtensionDirectory(uuid, userDir, folder);
@@ -616,6 +677,8 @@ function loadMetaData({state, path, uuid, userDir, folder, force}) {
                     return;
                 }
                 meta = JSON.parse(ByteArray.toString(json));
+
+                maybeAddWindowAttentionHandlerRole(meta);
             } catch (e) {
                 logError(`Failed to load/parse metadata.json`, uuid, e);
                 meta = createMetaDummy(uuid, oldPath, State.ERROR);
